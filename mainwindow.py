@@ -294,6 +294,11 @@ class MainWindow( wx.Frame ):
         self.plot = PlotFigure(self, "Plot Window")
         #self.plot.Show()
 
+        #close window
+        self.Bind( wx.EVT_CLOSE, self.OnCloseWindow )
+
+        
+
 
         self.Show()
 
@@ -522,7 +527,9 @@ class MainWindow( wx.Frame ):
         plt.show()
 
         
-        
+    def OnCloseWindow( self, event ):
+        cv2.destroyAllWindows()
+        self.Destroy()
         
         
 

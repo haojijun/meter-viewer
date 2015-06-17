@@ -20,97 +20,7 @@ roi_w = 400
 roi_h = 100
 
 #points to pick pixel
-"""
-testpoints = ((-0.91, -0.06), #-
-              (-0.46, 0.58), #1a
-              (-0.37, 0.3), #1b
-              (-0.39, -0.35), #1c
-              (-0.5, -0.64), #1d
-              (-0.58, -0.35),#1e
-              (-0.56, 0.3), #1f
-              (-0.48, -0.02), #1g
-              (-0.36, -0.75), #1h
-              (-0.08, 0.56), #2a
-              (0.01, 0.22), #2b
-              (-0.01, -0.4), #2c
-              (-0.11, -0.7), #2d
-              (-0.20, -0.38), #2e
-              (-0.18, 0.24), #2f
-              (-0.1, -0.1), #2g
-              (0.02, -0.74), #2h
-              (0.3, 0.58), #3a
-              (0.39, 0.26), #3b
-              (0.36, -0.38), #3c
-              (0.26, -0.68), #3d
-              (0.18, -0.38), #3e
-              (0.20, 0.28), #3f
-              (0.28, -0.1), #3g
-              (0.39, -0.75), #3h
-              (0.92, -0.62)) #dBm
 
-
-#beter for mobile camera
-testpoints = ((-0.91, -0.0), #-
-              (-0.46, 0.63), #1a
-              (-0.37, 0.3), #1b
-              (-0.40, -0.31), #1c
-              (-0.51, -0.6), #1d
-              (-0.595, -0.31),#1e
-              (-0.565, 0.3), #1f
-              (-0.485, -0.0), #1g
-              (-0.35, -0.67), #1h
-              (-0.07, 0.62), #2a
-              (0.01, 0.27), #2b
-              (-0.02, -0.35), #2c
-              (-0.13, -0.63), #2d
-              (-0.21, -0.33), #2e
-              (-0.19, 0.29), #2f
-              (-0.1, -0.0), #2g
-              (0.03, -0.7), #2h
-              (0.31, 0.62), #3a
-              (0.39, 0.31), #3b
-              (0.36, -0.35), #3c
-              (0.25, -0.62), #3d
-              (0.17, -0.35), #3e
-              (0.19, 0.31), #3f
-              (0.28, -0.0), #3g
-              (0.41, -0.69), #3h
-              (0.92, -0.52)) #dBm
-
-
-
-#for segmentvalue2
-testpoints2 =((0.05, 0.50), #-
-              (0.12,0.30), #1b
-              (0.11,0.70), #1c
-              (0.12,0.95), #1h
-              (0.27, 0.07), #2a
-              (0.31, 0.28), #2b
-              (0.30, 0.72), #2c
-              (0.25, 0.93), #2d
-              (0.20, 0.72), #2e
-              (0.21, 0.28), #2f
-              (0.26, 0.50), #2g
-              (0.31, 0.95), #2h
-              (0.46, 0.07), #3a
-              (0.51, 0.28), #3b
-              (0.49, 0.72), #3c
-              (0.44, 0.93), #3d
-              (0.39, 0.72), #3e
-              (0.41, 0.28), #3f
-              (0.45, 0.50), #3g
-              (0.51, 0.95), #3h
-              (0.65, 0.07), #4a
-              (0.695, 0.28), #4b
-              (0.68, 0.72), #4c
-              (0.63, 0.93), #4d
-              (0.58, 0.72), #4e
-              (0.59, 0.28), #4f
-              (0.64, 0.50), #4g
-              (0.695, 0.95), #4h
-              (0.96, 0.85)) #dBm
-
-"""
 
 
 #for segmentvalue2 roi adjust
@@ -157,7 +67,10 @@ number_mask = ((1, 1, 1, 1, 1, 1, 0), #0
                (1, 1, 1, 0, 0, 0, 0), #7
                (1, 1, 1, 1, 1, 1, 1), #8
                (1, 1, 1, 1, 0, 1, 1), #9
-               (0, 0, 0, 0, 0, 0, 0)) #MASK_N, same as 0
+               (0, 0, 0, 0, 0, 0, 0), #MASK_N, same as 0
+               (1, 0, 0, 1, 1, 1, 0), #C
+               (1, 1, 1, 0, 1, 1, 1), #A
+               (0, 0, 0, 1, 1, 1, 0)) #L
 
 MASK_C = (1, 0, 0, 1, 1, 1, 0) #CAL
 MASK_A = (1, 1, 1, 0, 1, 1, 1)
@@ -294,6 +207,50 @@ def getsegments( img, points, disp=1 ):
 
     return values
 
+def getSingleNumber( img, cont, disp=0 ):
+    """
+    single number ROI size: 60x100
+    """
+    pos1 = np.float32( [ [cont[0],0],
+                         [cont[0]+cont[2],0],
+                         [cont[0]+cont[2],99] ] )
+    pos2 = np.float32( [ [0,0],
+                         [59,0],
+                         [59,99] ] )#
+
+    M = cv2.getAffineTransform( pos1, pos2 )
+    #roi_sn mean roi_singlenumber
+    roi_sn = cv2.warpAffine( img, M, (60,100),
+                             borderValue=cv2.cv.ScalarAll(255) )
+
+    seg7 = 7*[0]
+    if sum([ a[30] for a in roi_sn[5:25] ]) > 255*3: #a,0
+        seg7[0] = 1       
+    if sum([ a[30] for a in roi_sn[40:60] ]) > 255*3: #g,6
+        seg7[6] = 1
+    if sum([ a[30] for a in roi_sn[75:95] ]) > 255*3: #d,3
+        seg7[3] = 1   
+    if sum( roi_sn[25][0:20] ) > 255*3: #f,5
+        seg7[5] = 1   
+    if sum( roi_sn[25][40:60] ) > 255*3: #b,1
+        seg7[1] = 1   
+    if sum( roi_sn[75][0:20] ) > 255*3: #e,4
+        seg7[4] = 1   
+    if sum( roi_sn[75][40:60] ) > 255*3: #c,2
+        seg7[2] = 1
+    #print seg7
+
+    cv2.imshow( "roi_sn", roi_sn )
+
+    if number_mask.count( tuple( seg7 ) ):
+        return str( number_mask.index( tuple( seg7 ) ) )
+    else:
+        return "*"
+
+    
+
+    return
+    
 
 #
 def getnumber( img ):
@@ -305,47 +262,6 @@ def getnumber( img ):
     roi = getroi( img )
     if roi is None:
         return (0, "ERR", 1, "ROI get error")
-
-    #for debug
-    kernel = np.ones((5,5),np.uint8)
-    #roi = cv2.morphologyEx(roi, cv2.MORPH_CLOSE, kernel, iterations = 3)
-    cont, hier = cv2.findContours( roi.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE )
-    #cv2.drawContours( roi, cont, -1, (255,255,255) )
-    
-    brs = []
-    for c in cont:
-        r = cv2.boundingRect( c )
-        
-        for i in range( len(brs) ):
-            if r[0] > brs[i][0]+brs[i][2]+5 or r[0]+r[2]+5 < brs[i][0]: # bu xiang jiao
-                pass
-            else:
-                #brs[i] |= r
-                brs[i] = [ min( brs[i][0], r[0] ),
-                           min( brs[i][1], r[1] ),
-                           max( brs[i][0]+brs[i][2], r[0]+r[2] ) - min( brs[i][0], r[0] ),
-                           max( brs[i][1]+brs[i][3], r[1]+r[3] ) - min( brs[i][1], r[1] )]
-                r = None
-                break
-        if r:
-            brs.append( list( r ) )
-    # height > 60
-    brs_1 = []
-    for br in brs:
-        if br[3] > 60:
-            brs_1.append( br )
-
-    # sorted
-    #print brs_1
-    brs_1.sort()
-    #print brs_1
-    
-            
-    print len( cont ), len( brs ), len( brs_1 )
-    brs = brs_1
-    for r in brs:
-        cv2.rectangle( roi, (r[0], r[1]), (r[0]+r[2], r[1]+r[3]), (255,255,255) )
-    
 
     segments = getsegments( roi, testpoints2, disp=0 )
 
@@ -383,7 +299,56 @@ def getnumber( img ):
         roi = roi_ad
         #print "ROI adjust"
         
+
+    #for debug
+    kernel = np.ones((5,5),np.uint8)
+    #roi = cv2.morphologyEx(roi, cv2.MORPH_CLOSE, kernel, iterations = 3)
+    cont, hier = cv2.findContours( roi.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE )
+    #cv2.drawContours( roi, cont, -1, (255,255,255) )
     
+    brs = []
+    for c in cont:
+        r = cv2.boundingRect( c )
+        
+        for i in range( len(brs) ):
+            if r[0] > brs[i][0]+brs[i][2]+5 or r[0]+r[2]+5 < brs[i][0]: # bu xiang jiao
+                pass
+            else:
+                #brs[i] |= r
+                brs[i] = [ min( brs[i][0], r[0] ),
+                           min( brs[i][1], r[1] ),
+                           max( brs[i][0]+brs[i][2], r[0]+r[2] ) - min( brs[i][0], r[0] ),
+                           max( brs[i][1]+brs[i][3], r[1]+r[3] ) - min( brs[i][1], r[1] )]
+                r = None
+                break
+        if r:
+            brs.append( list( r ) )
+    # height > 60
+    brs_1 = []
+    for br in brs:
+        if br[3] > 60:
+            brs_1.append( br )
+
+    # sorted
+    #print brs_1
+    brs_1.sort()
+    #print brs_1
+    
+            
+    #print len( cont ), len( brs ), len( brs_1 )
+    brs = brs_1
+    numstr = ""
+    for r in brs:
+        cv2.rectangle( roi, (r[0], r[1]), (r[0]+r[2], r[1]+r[3]), (255,255,255) )
+        if r[2] > 40:
+            numstr += getSingleNumber( roi, r )
+        else:
+            numstr += "1"
+
+    print numstr
+       
+
+
     
     #
     segments = getsegments( roi, testpoints2, disp=1 )
