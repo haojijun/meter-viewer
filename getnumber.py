@@ -224,27 +224,40 @@ def getSingleNumber( img, cont, disp=0 ):
                              borderValue=cv2.cv.ScalarAll(255) )
 
     seg7 = 7*[0]
-    if sum([ a[30] for a in roi_sn[5:25] ]) > 255*3: #a,0
-        seg7[0] = 1       
-    if sum([ a[30] for a in roi_sn[40:60] ]) > 255*3: #g,6
-        seg7[6] = 1
-    if sum([ a[30] for a in roi_sn[75:95] ]) > 255*3: #d,3
-        seg7[3] = 1   
-    if sum( roi_sn[25][0:20] ) > 255*3: #f,5
+    
+    if sum( roi_sn[25][0:20] ) > 0: #f,5
         seg7[5] = 1   
-    if sum( roi_sn[25][40:60] ) > 255*3: #b,1
+    if sum( roi_sn[25][40:60] ) > 0: #b,1
         seg7[1] = 1   
-    if sum( roi_sn[75][0:20] ) > 255*3: #e,4
+    if sum( roi_sn[75][0:20] ) > 0: #e,4
         seg7[4] = 1   
-    if sum( roi_sn[75][40:60] ) > 255*3: #c,2
+    if sum( roi_sn[75][40:60] ) > 0: #c,2
         seg7[2] = 1
+
+    #for "7." or "L"
+    x_ad = 0
+    if seg7[4]==0 and seg7[5]==0:
+        x_ad -= 5
+    if seg7[1]==0 and seg7[2]==0:
+        x_ad += 5
+        
+    if sum([ a[30+x_ad] for a in roi_sn[0:20] ]) > 0: #a,0
+        seg7[0] = 1       
+    if sum([ a[30+x_ad] for a in roi_sn[40:60] ]) > 0: #g,6
+        seg7[6] = 1
+    if sum([ a[30+x_ad] for a in roi_sn[80:100] ]) > 0: #d,3
+        seg7[3] = 1   
     #print seg7
 
     cv2.imshow( "roi_sn", roi_sn )
 
     if number_mask.count( tuple( seg7 ) ):
+        #imwritefile = "E://PIL/num/singlenum/normal/" + str(cv2.getTickCount()) + ".jpg"
+        #cv2.imwrite( imwritefile, roi_sn )
         return str( number_mask.index( tuple( seg7 ) ) )
     else:
+        #imwritefile = "E://PIL/num/singlenum/error/" + str(cv2.getTickCount()) + ".jpg"
+        #cv2.imwrite( imwritefile, roi_sn )
         return "*"
 
     
@@ -263,13 +276,9 @@ def getnumber( img ):
     if roi is None:
         return (0, "ERR", 1, "ROI get error")
 
-    segments = getsegments( roi, testpoints2, disp=0 )
+    #segments = getsegments( roi, testpoints2, disp=0 )
 
-    #if sum(roi[30]) > thresh_roi*255:
-    if tuple( [0] + segments[1:3] + [0,0,0,0] ) == MASK_N \
-       and tuple(segments[4:11]) == MASK_N \
-       and tuple(segments[12:19]) == MASK_N \
-       and tuple(segments[20:27]) == MASK_N:
+    if sum( roi[50][15*4:75*4] ) < 5*255:
         return (0, "OFF", 0, "Display OFF")
     else:
         #adjust the roi
@@ -339,11 +348,12 @@ def getnumber( img ):
     brs = brs_1
     numstr = ""
     for r in brs:
-        cv2.rectangle( roi, (r[0], r[1]), (r[0]+r[2], r[1]+r[3]), (255,255,255) )
         if r[2] > 40:
-            numstr += getSingleNumber( roi, r )
+            numstr += getSingleNumber( roi, r )    
         else:
             numstr += "1"
+        cv2.rectangle( roi, (r[0], r[1]), (r[0]+r[2], r[1]+r[3]), (255,255,255) )
+
 
     print numstr
        
