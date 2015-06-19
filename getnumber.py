@@ -19,44 +19,13 @@ import math
 roi_w = 400
 roi_h = 100
 
-#points to pick pixel
 
-
-
-#for segmentvalue2 roi adjust
-testpoints2 =((0.05, 0.50), #-
-              (0.12,0.30), #1b
-              (0.11,0.70), #1c
-              (0.12,0.95), #1h
-              (0.27, 0.08), #2a
-              (0.31, 0.30), #2b
-              (0.30, 0.70), #2c
-              (0.25, 0.92), #2d
-              (0.20, 0.70), #2e
-              (0.21, 0.30), #2f
-              (0.26, 0.50), #2g
-              (0.31, 0.95), #2h
-              (0.46, 0.08), #3a
-              (0.51, 0.30), #3b
-              (0.49, 0.70), #3c
-              (0.44, 0.92), #3d
-              (0.39, 0.70), #3e
-              (0.41, 0.30), #3f
-              (0.45, 0.50), #3g
-              (0.51, 0.95), #3h
-              (0.65, 0.08), #4a
-              (0.695, 0.30), #4b
-              (0.68, 0.70), #4c
-              (0.63, 0.92), #4d
-              (0.58, 0.70), #4e
-              (0.59, 0.30), #4f
-              (0.64, 0.50), #4g
-              (0.695, 0.95), #4h
-              (0.96, 0.85)) #dBm
-
-
-
-#8-segment number
+#7-segment number
+#   |-a-|
+#   f   b
+#   |-g-|
+#   e   c
+#   |-d-|
 number_mask = ((1, 1, 1, 1, 1, 1, 0), #0
                (0, 1, 1, 0, 0, 0, 0), #1
                (1, 1, 0, 1, 1, 0, 1), #2
@@ -67,16 +36,11 @@ number_mask = ((1, 1, 1, 1, 1, 1, 0), #0
                (1, 1, 1, 0, 0, 0, 0), #7
                (1, 1, 1, 1, 1, 1, 1), #8
                (1, 1, 1, 1, 0, 1, 1), #9
-               (0, 0, 0, 0, 0, 0, 0), #MASK_N, same as 0
                (1, 0, 0, 1, 1, 1, 0), #C
                (1, 1, 1, 0, 1, 1, 1), #A
-               (0, 0, 0, 1, 1, 1, 0)) #L
+               (0, 0, 0, 1, 1, 1, 0), #L
+               (0, 1, 1, 0, 0, 0, 1) )#-1
 
-MASK_C = (1, 0, 0, 1, 1, 1, 0) #CAL
-MASK_A = (1, 1, 1, 0, 1, 1, 1)
-MASK_L = (0, 0, 0, 1, 1, 1, 0)
-
-MASK_N = (0, 0, 0, 0, 0, 0, 0) #no number display
 
 # background:176, ROI:70, number:220
 threshold_1 = 120
@@ -171,60 +135,30 @@ def getroi( img ):
 
     return roi_thresh
 
-    #print cv2.cv.BoxPoints( box )
-    #segmentvalue2( gray, box, testpoints2, threshold_2 )
-
-    #number_points = segmentvalue( gray, box, testpoints, threshold_2 )
-    
-
-    #return getnumber( number_points )
-
-
-
-#need update
-#from points to segments
-def getsegments( img, points, disp=1 ):
-    values = []
-    segmentcolor = (255, 0, 0)
-
-    #print len(img)
-    #print len(img[0])
-    #print img[50]
-
-    for p in points:
-        p_x = int(roi_w*p[0])
-        p_y = int(roi_h*p[1])
-        #thresh for number segment
-        if img[p_y][p_x]:
-            #print p_x, p_y, img[p_y][p_x]
-            values.append(1)
-        else:
-            values.append(0)
-
-        if disp:
-            cv2.circle( img, (p_x,p_y), 3, segmentcolor, -1 )
-            #print p_x, p_y
-
-    return values
-
-def getSingleNumber( img, cont, disp=0 ):
+"""
+input:
+    img: roi img
+    cont: single number contours
+output:
+    single number string
+"""
+def getSingleNumber( img, cont ):
     """
     single number ROI size: 60x100
     """
+    #step 1. get single number roi
     pos1 = np.float32( [ [cont[0],0],
                          [cont[0]+cont[2],0],
                          [cont[0]+cont[2],99] ] )
     pos2 = np.float32( [ [0,0],
                          [59,0],
-                         [59,99] ] )#
-
+                         [59,99] ] )
     M = cv2.getAffineTransform( pos1, pos2 )
-    #roi_sn mean roi_singlenumber
     roi_sn = cv2.warpAffine( img, M, (60,100),
                              borderValue=cv2.cv.ScalarAll(255) )
 
+    #step 2. get 7 segments of single number
     seg7 = 7*[0]
-    
     if sum( roi_sn[25][0:20] ) > 0: #f,5
         seg7[5] = 1   
     if sum( roi_sn[25][40:60] ) > 0: #b,1
@@ -233,41 +167,45 @@ def getSingleNumber( img, cont, disp=0 ):
         seg7[4] = 1   
     if sum( roi_sn[75][40:60] ) > 0: #c,2
         seg7[2] = 1
-
-    #for "7." or "L"
+    #adjust for "7." or "L"
     x_ad = 0
     if seg7[4]==0 and seg7[5]==0:
         x_ad -= 5
     if seg7[1]==0 and seg7[2]==0:
-        x_ad += 5
-        
+        x_ad += 5 
     if sum([ a[30+x_ad] for a in roi_sn[0:20] ]) > 0: #a,0
         seg7[0] = 1       
     if sum([ a[30+x_ad] for a in roi_sn[40:60] ]) > 0: #g,6
         seg7[6] = 1
     if sum([ a[30+x_ad] for a in roi_sn[80:100] ]) > 0: #d,3
         seg7[3] = 1   
-    #print seg7
 
-    cv2.imshow( "roi_sn", roi_sn )
+    #for debug
+    cv2.imshow( "roi_sn", roi_sn ) 
 
-    if number_mask.count( tuple( seg7 ) ):
-        #imwritefile = "E://PIL/num/singlenum/normal/" + str(cv2.getTickCount()) + ".jpg"
-        #cv2.imwrite( imwritefile, roi_sn )
-        return str( number_mask.index( tuple( seg7 ) ) )
-    else:
+    try:
+        i = number_mask.index( tuple(seg7) )
+        if i==10:
+            return "C"
+        elif i==11:
+            return "A"
+        elif i==12:
+            return "L"
+        elif i==13:
+            return "-1"
+        else:
+            return str( i )
+    except:
         #imwritefile = "E://PIL/num/singlenum/error/" + str(cv2.getTickCount()) + ".jpg"
         #cv2.imwrite( imwritefile, roi_sn )
         return "*"
 
-    
 
-    return
-    
+
 
 #
 def getnumber( img ):
-    thresh_roi = 20
+    thresh_roi = 5
     color = (255, 255, 0)
     numbers = ""
 
@@ -276,27 +214,28 @@ def getnumber( img ):
     if roi is None:
         return (0, "ERR", 1, "ROI get error")
 
-    #segments = getsegments( roi, testpoints2, disp=0 )
-
+    #adjust roi if display number
     if sum( roi[50][15*4:75*4] ) < 5*255:
-        return (0, "OFF", 0, "Display OFF")
+        return (1, "OFF", 0, "Display OFF")
     else:
         #adjust the roi
         y_up = 49                        
-        for i in range(0,20,2):
-            if sum(roi[i]) > thresh_roi*255:
+        for i in range(0,30,2):
+            if sum(roi[i]) >= thresh_roi*255:
                 #print i
                 y_up = i
                 break
 
         y_down = 50
-        for i in range(99,80,-2):
-            if sum(roi[i]) > thresh_roi*255:
+        for i in range(99,70,-2):
+            if sum(roi[i]) >= thresh_roi*255:
                 #print i
                 y_down = i
                 break
 
-        if (y_down - y_up) < 0.6 * (roi_h+10+10):
+        if (y_down - y_up) < 0.6 * roi_h:
+            #print "ROI adjust error", y_down-y_up, y_down, y_up
+            #cv2.imshow("ROI ad", roi)
             return (0, "ERR", 2, "ROI adjust error")
 
         pos1 = np.float32( [ [0,y_up], [roi_w-1,y_up], [roi_w-1, y_down] ] )
@@ -309,20 +248,20 @@ def getnumber( img ):
         #print "ROI adjust"
         
 
-    #for debug
-    kernel = np.ones((5,5),np.uint8)
-    #roi = cv2.morphologyEx(roi, cv2.MORPH_CLOSE, kernel, iterations = 3)
+
+    #step 2. get single number roi
     cont, hier = cv2.findContours( roi.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE )
-    #cv2.drawContours( roi, cont, -1, (255,255,255) )
-    
+
+    #bounding rect
     brs = []
     for c in cont:
-        r = cv2.boundingRect( c )
-        
+        r = cv2.boundingRect( c )      
         for i in range( len(brs) ):
-            if r[0] > brs[i][0]+brs[i][2]+5 or r[0]+r[2]+5 < brs[i][0]: # bu xiang jiao
+            # two contours have no overlap in x axis
+            if r[0] > brs[i][0]+brs[i][2]+5 or r[0]+r[2]+5 < brs[i][0]: 
                 pass
             else:
+                #two contours should be merge, something like number "1"
                 #brs[i] |= r
                 brs[i] = [ min( brs[i][0], r[0] ),
                            min( brs[i][1], r[1] ),
@@ -332,75 +271,58 @@ def getnumber( img ):
                 break
         if r:
             brs.append( list( r ) )
-    # height > 60
-    brs_1 = []
+
+    #filter that single number roi height > 60
+    brs_tmp = []
     for br in brs:
         if br[3] > 60:
-            brs_1.append( br )
+            brs_tmp.append( br )
+    brs = brs_tmp
 
-    # sorted
-    #print brs_1
-    brs_1.sort()
-    #print brs_1
-    
-            
-    #print len( cont ), len( brs ), len( brs_1 )
-    brs = brs_1
+    #sorted the contours in x axis
+    brs.sort()
+
+    #check single number roi right position
+    roi_sn_right = [55, 135, 215, 295]
+    brs_len = len( brs )
+    if brs_len not in range(3,5):
+        return (0, "ERR", 3, "Single Number ROI error")
+    else:
+        for i in range( 1, brs_len+1 ):
+            if brs[-i][0] + brs[-i][2] not in \
+               range( roi_sn_right[-i]-15, roi_sn_right[-i]+15 ):
+                return (0, "ERR", 3, "Single Number ROI error")
+                    
+
+    #step 3. get numbers
     numstr = ""
     for r in brs:
-        if r[2] > 40:
-            numstr += getSingleNumber( roi, r )    
-        else:
+        #if roi_sn width < 40, just set it to "1"
+        if r[2] < 40:
             numstr += "1"
+        else:
+            numstr += getSingleNumber( roi, r )   
+
+        #draw single number roi  
         cv2.rectangle( roi, (r[0], r[1]), (r[0]+r[2], r[1]+r[3]), (255,255,255) )
 
-
-    print numstr
-       
-
-
-    
-    #
-    segments = getsegments( roi, testpoints2, disp=1 )
-    #print segments
-
+    #for debug
+    #print numstr
     cv2.imshow("roi", roi)
 
-    if tuple(segments[4:11]) == MASK_C \
-       and tuple(segments[12:19]) == MASK_A \
-       and tuple(segments[20:27]) == MASK_L:
-        return (0, "CAL", 0, "Display CAL")
-    
-    #three right number exist
-    if number_mask.count(tuple( [0]+segments[1:3]+[0,0,0,0] ) ) \
-       and number_mask.count(tuple(segments[4:11])) \
-       and number_mask.count(tuple(segments[12:19])) \
-       and number_mask.count(tuple(segments[20:27])):
-#        if segments[3] + segments[11] + segments[19] + segments[27] > 1:
-#            return (0, "ERR", 3, "More dots error")
-#        if segments[0]:
-#            numbers += '-'
-        numbers += str( number_mask.index(tuple([0]+segments[1:3]+[0,0,0,0])) % 10 )
-#        if segments[3]:
-#            numbers += '.'
-        numbers += str( number_mask.index(tuple(segments[4:11])) % 10 )
-#        if segments[11]:
-#            numbers += '.'
-        numbers += str( number_mask.index(tuple(segments[12:19])) % 10 )
-#        if segments[19]:
-#            numbers += '.'
-        numbers += str( number_mask.index(tuple(segments[20:27])) % 10 )
-#        if segments[27]:
-#            numbers += '.'
-        #if segments[25]:
-        #    number_str += " dBm"
-        #else:
-        #    number_str += " dB"
-
-        return (1, numbers, 0, "Number OK")
-                         
-    else:
-        return (0, "ERR", 4, "Number error")
+    #check whether numstr is ok
+    #it is ok if "-1" appear first, else wrong like "*"
+    #return number string removing "-"
+    try:
+        num = int( numstr )
+        num = abs( num )
+        return (1, str(num), 0, "Number OK")
+    except:
+        if numstr[-3:] == "CAL":
+            return (1, "CAL", 0, "Display CAL")
+        else:
+            return (0, "ERR", 4, "Number error")
+       
 
 
 #-------------------------------------------------------

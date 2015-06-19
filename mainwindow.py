@@ -24,11 +24,11 @@ rows = 360
 fps = 10
 
 
+#global
+noise_level = -40.0
 
 
 
-val_list = []
-val_list_n = 0
 
 
 
@@ -39,52 +39,30 @@ err_cnt = 0
 len_cnt = 0
 
 # error correction
-def valuefilter ( value_in, frame=0, err_max=30, len_max=100 ):
-    global err_cnt, val_last, val_list, val_list_n, val_time
 
-    if value_in[0] :
-        if val_last is None: #start
-            val_time = frame
-            #val_list = []
-            val_list_n += 1
-            err_cnt = 0
-            val_list.append( [ val_time, [] ] )
-        val_last = float(value_in[1])
-        val_list[val_list_n-1][1].append(val_last)
-        if err_cnt > 0:
-            err_cnt -= 1
-    else:
-        if val_last is not None:
-            if value_in[1] == "CAL" or value_in[1] == "OFF": #end
-                val_last = None
-                #print val_list
-                
-            else: #value_in[1] == "ERR"
-                if err_cnt < err_max:
-                    err_cnt += 1
-                    val_list[val_list_n-1][1].append(val_last)
-                else: #end
-                    val_last = None
-                    #print val_list
-                    
-            
-
-    return
 
 
 
 
 #global
 val_list = []
+val_list_bar = []
 
 #func only
 val_list_tmp = []
 
+"""
+1. if there "number" or "CAL" or "OFF", select most common
+2. if there only "ERR", then error
+3. how to deal with only has one wrong number?
+"""
+
 def valuefilter2( value_in, frame=0, len_max=10 ):
-    global val_list, val_list_tmp
+    global val_list, val_list_tmp, val_list_bar
 
     if frame == 0:
         val_list = []
+        val_list_bar = []
         
     if frame % len_max == 0:
         val_list_tmp = []
@@ -92,41 +70,31 @@ def valuefilter2( value_in, frame=0, len_max=10 ):
     val_list_tmp.append( value_in )
     
     if ( frame + 1 ) % len_max == 0:
-        val_most = Counter( val_list_tmp ).most_common( 1 )[0][0]
-        #print val_most[1]
-        if val_most[0]:
-            val_list.append( float( val_most[1] ) / -10.0 ) #"-888.8dBm"
+        def f(x): return x[0]==1
+        val_list_f = filter( f, val_list_tmp )
+        if len(val_list_f) >= 0.5*len_max:
+            val_most = Counter( val_list_f ).most_common( 1 )[0][0]
+            #print val_most[1]
+            if val_most[1] != "CAL" and val_most[1] != "OFF":
+                val_float = float( val_most[1] ) / -10.0 #"-888.8dBm"
+                val_list.append( val_float )
+                if val_float > noise_level:
+                    val_list_bar.append( [None, None, noise_level] )
+                else:
+                    val_list_bar.append( [noise_level, None, None] )
+            else:
+                val_list.append( None )
+                val_list_bar.append( [noise_level, None, None] )
         else:
             val_list.append( None )
+            val_list_bar.append( [None, noise_level, None] )
+            print "filter Error!", len(val_list_f)
+            #for err in val_list_tmp:
+                #print err
             
     return
         
-    
-        
-    
-    
-"""    
 
-fig, ax = plt.subplots()
-line, = ax.plot( [], [], lw=2 ) # "line," means what?
-ax.set_ylim( -200.0, 0.0 )
-ax.set_xlim( 0, 100 )
-ax.grid()
-xdata, ydata = [], []
-
-def ani_init():
-    line.set_data( [], [] )
-    return line,
-
-def value_plot( i ):
-    line.set_data( range( len( val_list ) ), val_list )
-    return line,
-
-#fig.show()
-
-#plt.show()
-
-"""
 
 class PlotFigure( wx.Frame ):
     """Matplotlib wxFrame with animation effect"""
@@ -136,14 +104,21 @@ class PlotFigure( wx.Frame ):
         self.fig = Figure( (6,4), 100 )
         self.canvas = FigureCanvas( self, wx.ID_ANY, self.fig )
         self.ax = self.fig.add_subplot(111)
+        #self.ax = self.fig.add_axes( [0.1, 0.1, 0.8, 0.5] )
         self.ax.set_ylim( [-200, 0] )
         self.ax.set_xlim( [0, 60] ) #200
         self.ax.set_autoscale_on(False)
         #self.ax.set_xticks([])
         #self.ax.set_yticks( [20] )
         #self.ax.grid(True)
-        self.line, = self.ax.plot( [], [], lw=2 )
-        self.ax.plot( range(60), [-40]*60, '--', lw=1 ) # -40, 60
+        self.line, = self.ax.plot( [], [], color='blue', lw=1 ) # value
+        self.line_g, = self.ax.plot( [], [], color='green', \
+                                     linestyle='--', lw=1 ) # number, CAL, OFF
+        self.line_y, = self.ax.plot( [], [], color='yellow', \
+                                     linestyle='--', marker='d', lw=1 ) # ERR
+        self.line_r, = self.ax.plot( [], [], color='red', \
+                                     linestyle=':', marker=6, lw=1 ) # over alarm
+        #self.ax.plot( range(60), [-40]*60, '--', lw=1 ) # -40, 60
         self.canvas.draw()
         self.bg = self.canvas.copy_from_bbox( self.ax.bbox )
 
@@ -151,11 +126,20 @@ class PlotFigure( wx.Frame ):
         #self.canvas.restore_region( self.bg )
         xmin, xmax = self.ax.get_xlim()
         if len(val_list) >= xmax:
-            self.ax.set_xlim(xmin, 2*xmax)
-            self.ax.plot( range(2*int(xmax)), [-40]*2*int(xmax), '--', lw=1 ) #
+            self.ax.set_xlim(xmin, int(1.5*xmax) )
+            #self.ax.plot( range(2*int(xmax)), [-40]*2*int(xmax), '--', lw=1 ) #
             self.canvas.draw()
         self.line.set_data( range( len( val_list ) ), val_list )
+        self.line_g.set_data( range( len( val_list ) ), \
+                              [ v[0] for v in val_list_bar ] )
+        self.line_y.set_data( range( len( val_list ) ), \
+                              [ v[1] for v in val_list_bar ] )
+        self.line_r.set_data( range( len( val_list ) ), \
+                              [ v[2] for v in val_list_bar ] )
         self.ax.draw_artist( self.line )
+        self.ax.draw_artist( self.line_g )
+        self.ax.draw_artist( self.line_y )
+        self.ax.draw_artist( self.line_r )
         self.canvas.blit( self.ax.bbox )
         
         
@@ -409,14 +393,8 @@ class MainWindow( wx.Frame ):
 
 
     def NextFrame( self, event ):
-        ret1, img_c1 = self.capture.read()
-        ret2, img_c2 = self.capture.read()
-        ret3, img_c3 = self.capture.read()
-        if ret1 and ret2 and ret3:
-            # there may be better way
-            img_c = cv2.addWeighted( img_c1, 0.5, img_c2, 0.5, 0.0 )
-            img_c = cv2.addWeighted( img_c, 0.67, img_c3, 0.33, 0.0 )
-            
+        ret, img_c = self.capture.read()
+        if ret:
             # image zoom
             cmd_init = self.zoom_param[0]
             cmd_rotate = self.zoom_param[1]
@@ -506,29 +484,14 @@ class MainWindow( wx.Frame ):
 
 
     def OnPlot( self, event ):
-        """
-        for val in val_list:
-            plt.plot(tuple(range(val[0], val[0]+len(val[1]))),
-                     tuple(val[1]), 'b.')
-        """
-
-        """
-        plt.plot( tuple( range( len(val_list) ) ),
-                  tuple( val_list ),
-                  'b.' )
-        """
-
-        """
-        ani = animation.FuncAnimation( fig, value_plot, init_func=ani_init,
-                                       blit=True, interval=500, repeat=False )
-        """
-
         #self.plot.Show()
         plt.show()
 
         
     def OnCloseWindow( self, event ):
+        self.timer.Stop()
         cv2.destroyAllWindows()
+        self.plot.Destroy()
         self.Destroy()
         
         
