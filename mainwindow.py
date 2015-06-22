@@ -73,38 +73,42 @@ class PlotFigure( wx.Frame ):
         wx.Frame.__init__( self, parent, title=title, size=(600,400) )
         self.fig = Figure( (6,4), 100 )
         self.canvas = FigureCanvas( self, wx.ID_ANY, self.fig )
-        self.ax = self.fig.add_axes( [0.1, 0.1, 0.8, 0.8] )
+        self.ax = self.fig.add_subplot(111)
+        #self.ax = self.fig.add_axes( [0.15, 0.15, 0.8, 0.8] )
         self.ax.set_ylim( [-200, 0] )
-        self.ax.set_xlim( [0, 60] ) #200
+        self.ax.set_xlim( [0, 1] ) #x display minutes
         self.ax.set_autoscale_on(False)
-        #self.ax.set_xticks([])
-        #self.ax.set_yticks( [20] )
+        self.ax.set_yticks( range(0, -200, -10) )
         #self.ax.grid(True)
-        self.line, = self.ax.plot( [], [], color='blue', lw=1 ) # value
+        self.ax.set_xlabel( r'Recording time (minutes)' )
+        self.ax.set_ylabel( r'Noise value (dBm)' )
+        self.ax.text( 0, noise_level+10, r'Noise Level: ' + str(noise_level) + r' dBm' )
+        self.line, = self.ax.plot( [], [], color='blue', label='Values',
+                                   lw=1 ) # value
         self.line_g, = self.ax.plot( [], [], color='green', \
-                                     linestyle='--', lw=1 ) # number, CAL, OFF
+                                     linestyle='--', label='Normal',
+                                     lw=1 ) # number, CAL, OFF
         self.line_y, = self.ax.plot( [], [], color='yellow', \
-                                     linestyle='--', marker='d', lw=1 ) # ERR
+                                     linestyle='--', marker='d',
+                                     label='Miss', lw=1 ) # ERR
         self.line_r, = self.ax.plot( [], [], color='red', \
-                                     linestyle=':', marker=6, lw=1 ) # over alarm
-        #self.ax.plot( range(60), [-40]*60, '--', lw=1 ) # -40, 60
+                                     linestyle=':', label='Over',
+                                     marker=6, lw=1 ) # over alarm
+        self.ax.legend()
         self.canvas.draw()
         self.bg = self.canvas.copy_from_bbox( self.ax.bbox )
 
     def onUpdate( self ):
         #self.canvas.restore_region( self.bg )
         xmin, xmax = self.ax.get_xlim()
-        if len(val_list) >= xmax:
-            self.ax.set_xlim(xmin, int(1.5*xmax) )
-            #self.ax.plot( range(2*int(xmax)), [-40]*2*int(xmax), '--', lw=1 ) #
+        if len(val_list) >= 60*xmax:
+            self.ax.set_xlim(xmin, int(1.5*xmax)+1 ) # int(1.5)=1
             self.canvas.draw()
-        self.line.set_data( range( len( val_list ) ), val_list )
-        self.line_g.set_data( range( len( val_list ) ), \
-                              [ v[0] for v in val_list_bar ] )
-        self.line_y.set_data( range( len( val_list ) ), \
-                              [ v[1] for v in val_list_bar ] )
-        self.line_r.set_data( range( len( val_list ) ), \
-                              [ v[2] for v in val_list_bar ] )
+        x_minutes = [ s/60.0 for s in range( len( val_list ) ) ]
+        self.line.set_data( x_minutes, val_list )
+        self.line_g.set_data( x_minutes, [ v[0] for v in val_list_bar ] )
+        self.line_y.set_data( x_minutes, [ v[1] for v in val_list_bar ] )
+        self.line_r.set_data( x_minutes, [ v[2] for v in val_list_bar ] )
         self.ax.draw_artist( self.line )
         self.ax.draw_artist( self.line_g )
         self.ax.draw_artist( self.line_y )
@@ -319,7 +323,8 @@ class MainWindow( wx.Frame ):
             
     def OnRecord( self, event ):
         """ how to clear plot window """
-        self.plot.Destroy()
+        if self.plot:
+            self.plot.Destroy()
         self.plot = PlotFigure(self, "Plot Window")
         self.plot.Show()
         self.record = 1
@@ -363,10 +368,7 @@ class MainWindow( wx.Frame ):
             # step 2. result filter and plot
             if self.record:
                 valuefilter( value_ori, self.framenumber )
-                if not self.plot:
-                    self.plot = PlotFigure(self, "Plot Window")
-                    self.plot.Show()
-                self.plot.onUpdate()
+                self.OnPlot( event )
                 self.framenumber += 1
             else:
                 self.framenumber = 0
@@ -402,8 +404,10 @@ class MainWindow( wx.Frame ):
         dlg.Destroy()
 
     def OnPlot( self, event ):
-        self.plot.Show()
-        #plt.show()
+        if not self.plot:
+            self.plot = PlotFigure(self, "Plot Window")
+            self.plot.Show()
+        self.plot.onUpdate()
 
     def OnZoom( self, event ):
         zoom_id = event.GetId()
@@ -429,7 +433,8 @@ class MainWindow( wx.Frame ):
     def OnCloseWindow( self, event ):
         self.timer.Stop()
         cv2.destroyAllWindows()
-        self.plot.Destroy()
+        if self.plot:
+            self.plot.Destroy()
         self.Destroy()
 
 #-------------------------------------------------------        
