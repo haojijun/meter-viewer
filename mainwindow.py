@@ -7,12 +7,15 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from collections import Counter
+import ConfigParser
+import datetime
 
 from imagezoom import image_zoom
 from getnumber import getnumber
 
 #global setting
 noise_level = -40.0
+record_minutes_max = 0.6
 cols = 640 
 rows = 360
 
@@ -20,7 +23,6 @@ rows = 360
 val_list = []
 val_list_bar = []
 
-#------------------------------------------------------- 
 """
 1. if there "number" or "CAL" or "OFF", select most common
 2. if there only "ERR", then error
@@ -125,6 +127,11 @@ class MainWindow( wx.Frame ):
         self.record = 0
         self.fps = 0
         self.framenumber = 0
+        #auto save recorddir+recordname+recordslice+mp4/png
+        #slice=0 start a new recordname
+        self.recorddir = None
+        self.recordname = None
+        self.recordslice = 0
 
         # StatusBar
         self.CreateStatusBar()
@@ -134,9 +141,13 @@ class MainWindow( wx.Frame ):
         # 1st menu from left
         menu1 = wx.Menu()
         menu1.Append(101, "&Open Camera", "Open Camera Dialog")
-        menu1.Append(102, "&Open File", "Open Video File Dialog")
+        menu1.Append(102, "&Open File...", "Open Video File Dialog")
         menu1.AppendSeparator()
-        menu1.Append(103, "&Exit", "Close this Application")
+        menu1.Append(103, "&Save As...", "Save the auto saved file with a new name" )
+        menu1.AppendSeparator()
+        menu1.Append(104, "&Set Record Dir", "Set the auto save directory")
+        menu1.AppendSeparator()
+        menu1.Append(105, "&Exit", "Close this Application")
         menuBar.Append(menu1, "&File")
         # 2nd menu from left
         menu2 = wx.Menu()
@@ -148,6 +159,10 @@ class MainWindow( wx.Frame ):
         self.SetMenuBar(menuBar)
         self.Bind(wx.EVT_MENU, self.OnOpenCam, id=101)
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=102)
+        self.Bind(wx.EVT_MENU, self.OnSaveAs, id=103)
+        self.Bind(wx.EVT_MENU, self.OnSetRecordDir, id=104)
+        self.Bind(wx.EVT_MENU, self.OnCloseWindow, id=105)
+        
         
         # Tool Bar
         tb = self.CreateToolBar()
@@ -328,6 +343,13 @@ class MainWindow( wx.Frame ):
         self.plot = PlotFigure(self, "Plot Window")
         self.plot.Show()
         self.record = 1
+        #disable setRecordDir
+        self.MenuBar.Enable(104, False)
+        self.getRecordDir()
+        if self.recordslice == 0:
+            self.recordname = datetime.datetime.now().strftime("\%Y%m%d_%H%M%S_")
+        self.recordslice += 1
+        print self.recorddir + self.recordname + str(self.recordslice) + ".png"
         #set toolbar
         self.ToolBar.EnableTool(10, False)
         self.ToolBar.EnableTool(11, False)
@@ -337,6 +359,9 @@ class MainWindow( wx.Frame ):
     def OnStop( self, event ):
         # assert self.record==1
         self.record = 0
+        #enable setRecordDir
+        self.MenuBar.Enable(104, True)
+        self.recordslice = 0
         #set toolbar
         self.ToolBar.EnableTool(10, True)
         if self.capture:
@@ -379,29 +404,14 @@ class MainWindow( wx.Frame ):
             img_disp_bm = wx.BitmapFromBuffer( img_w, img_h, img_disp )
             dc = wx.ClientDC( self.window )
             dc.DrawBitmap( img_disp_bm, 0, 0, False )
+            # step 4. limit record lenght to 90 minutes
+            if self.framenumber >= self.fps * 60 * record_minutes_max:
+                #auto save
+                self.framenumber = 0
+                self.OnRecord( event )
         # end of frame capture
         else:
             self.OnEOF( event )
-      
-    def OnSaveAs( self, event ):
-        wildcard = "PNG Files (*.png)|*.png|"     \
-                   "JPG Files (*.jpg)|*.jpg|"     \
-                   "All files (*.*)|*.*"
-        dlg = wx.FileDialog(
-            self, message="Save file as ...",
-            defaultDir=os.getcwd(),
-            defaultFile="",
-            wildcard=wildcard,
-            style=wx.SAVE
-            )
-
-        dlg.SetFilterIndex(2)
-
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
-            self.plot.fig.savefig( path, dpi=100 )
-
-        dlg.Destroy()
 
     def OnPlot( self, event ):
         if not self.plot:
@@ -429,6 +439,46 @@ class MainWindow( wx.Frame ):
             self.zoom_param[1] = 1 #rotate right
         elif zoom_id == 28:
             self.zoom_param[1] = -1 #rotate left
+
+    def getRecordDir( self ):
+        if self.recorddir is None:
+            config = ConfigParser.ConfigParser()
+            config.read("conf.ini")
+            self.recorddir = config.get( "Record Dir", "recorddir" )
+
+    def OnSetRecordDir( self, event ):
+        dlg = wx.DirDialog( self, "Choose a directory:",
+                            style=wx.DD_DEFAULT_STYLE
+                            )
+        if dlg.ShowModal() == wx.ID_OK:
+            self.recorddir = dlg.GetPath()
+            config = ConfigParser.ConfigParser()
+            config.read("conf.ini")
+            config.set( "Record Dir", "recorddir", self.recorddir )
+            configfile = open( "conf.ini", "w" )
+            config.write( configfile )
+            configfile.close()            
+        dlg.Destroy()
+        
+    def OnSaveAs( self, event ):
+        wildcard = "PNG Files (*.png)|*.png|"     \
+                   "JPG Files (*.jpg)|*.jpg|"     \
+                   "All files (*.*)|*.*"
+        dlg = wx.FileDialog(
+            self, message="Save file as ...",
+            defaultDir=os.getcwd(),
+            defaultFile="",
+            wildcard=wildcard,
+            style=wx.SAVE
+            )
+
+        dlg.SetFilterIndex(2)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.plot.fig.savefig( path, dpi=100 )
+
+        dlg.Destroy()
         
     def OnCloseWindow( self, event ):
         self.timer.Stop()
