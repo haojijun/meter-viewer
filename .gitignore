@@ -220,3 +220,5 @@ pip-log.txt
 #############
 *.mp4
 *.avi
+records/*.png
+records/*.avi

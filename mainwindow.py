@@ -72,11 +72,11 @@ def valuefilter( value_in, frame=0, len_max=10 ):
 class PlotFigure( wx.Frame ):
     """ Matplotlib wxFrame with animation effect """
     def __init__( self, parent, title ):
-        wx.Frame.__init__( self, parent, title=title, size=(600,400) )
+        wx.Frame.__init__( self, parent, title=title, size=(720,405) )
         self.fig = Figure( (6,4), 100 )
         self.canvas = FigureCanvas( self, wx.ID_ANY, self.fig )
-        self.ax = self.fig.add_subplot(111)
-        #self.ax = self.fig.add_axes( [0.15, 0.15, 0.8, 0.8] )
+        #self.ax = self.fig.add_subplot(111)
+        self.ax = self.fig.add_axes( [0.12, 0.15, 0.81, 0.76] )
         self.ax.set_ylim( [-200, 0] )
         self.ax.set_xlim( [0, 1] ) #x display minutes
         self.ax.set_autoscale_on(False)
@@ -132,9 +132,13 @@ class MainWindow( wx.Frame ):
         self.recorddir = None
         self.recordname = None
         self.recordslice = 0
+        self.videowriter = None
 
         # StatusBar
         self.CreateStatusBar()
+        self.StatusBar.SetFieldsCount(3)
+        self.StatusBar.SetStatusWidths( [-4, -1, -3] )
+        #self.StatusBar.SetStatusText( "IDLE", 0 )
 
         # MenuBar
         menuBar = wx.MenuBar()
@@ -233,8 +237,7 @@ class MainWindow( wx.Frame ):
         self.Bind(wx.EVT_TIMER, self.NextFrame)
 
         # Plot window
-        self.plot = PlotFigure(self, "Plot Window")
-        #self.plot.Show()
+        self.plot = None
 
         # close window event
         self.Bind( wx.EVT_CLOSE, self.OnCloseWindow )
@@ -242,6 +245,20 @@ class MainWindow( wx.Frame ):
         # show window
         self.Show()
 
+    # normal function
+    def getRecordDir( self ):
+        if self.recorddir is None:
+            config = ConfigParser.ConfigParser()
+            config.read("conf.ini")
+            self.recorddir = config.get( "Record Dir", "recorddir" )
+
+    def autoSavePng( self ):
+        filepng = self.recorddir + self.recordname + str(self.recordslice) \
+                  + ".png"
+        self.plot.fig.savefig( filepng, dpi=100 ) #imgsize
+        
+
+    # event handle function
     def OnOpenFile( self, event ):
         wildcard = "Video Files (*.mp4;*.avi)|*.mp4;*.avi|"     \
                    "All files (*.*)|*.*"
@@ -336,20 +353,33 @@ class MainWindow( wx.Frame ):
             self.ToolBar.EnableTool(12, False)
             self.ToolBar.EnableTool(13, False)
             
-    def OnRecord( self, event ):
-        """ how to clear plot window """
-        if self.plot:
-            self.plot.Destroy()
-        self.plot = PlotFigure(self, "Plot Window")
-        self.plot.Show()
+    def OnRecord( self, event ):       
         self.record = 1
+        self.framenumber = 0
         #disable setRecordDir
         self.MenuBar.Enable(104, False)
         self.getRecordDir()
         if self.recordslice == 0:
             self.recordname = datetime.datetime.now().strftime("\%Y%m%d_%H%M%S_")
         self.recordslice += 1
-        print self.recorddir + self.recordname + str(self.recordslice) + ".png"
+        fileavi = self.recorddir + self.recordname + str(self.recordslice) + ".avi"
+        self.videowriter = cv2.VideoWriter()
+        #sometimes the first will not success
+        #the single video file should be smaller than 2G
+        #640x360, 10fps, 60minutes, 1600M
+        if not self.videowriter.open( fileavi,
+                                      cv2.cv.CV_FOURCC('M', 'J', 'P', 'G'),
+                                      self.fps, (cols, rows)
+                                      ):
+            self.videowriter.open( fileavi,
+                                   cv2.cv.CV_FOURCC('M', 'J', 'P', 'G'),
+                                   self.fps, (cols, rows) )
+        if not self.videowriter.isOpened():
+            self.videowriter = None
+        # how to clear the plot window ???
+        if self.plot:
+            self.plot.Destroy()
+        self.OnPlot( event )
         #set toolbar
         self.ToolBar.EnableTool(10, False)
         self.ToolBar.EnableTool(11, False)
@@ -359,9 +389,11 @@ class MainWindow( wx.Frame ):
     def OnStop( self, event ):
         # assert self.record==1
         self.record = 0
+        #auto save png here 2/2
+        self.autoSavePng()
+        self.recordslice = 0
         #enable setRecordDir
         self.MenuBar.Enable(104, True)
-        self.recordslice = 0
         #set toolbar
         self.ToolBar.EnableTool(10, True)
         if self.capture:
@@ -390,13 +422,18 @@ class MainWindow( wx.Frame ):
                                 cmd_pan_y = cmd_pan_y
                                 )
             value_ori = getnumber( img_z ) #
+            #print value_ori[1]
+            #display on StatusBar
+            self.StatusBar.SetStatusText( value_ori[1], 1 )
+            self.StatusBar.SetStatusText( value_ori[3], 2 )
             # step 2. result filter and plot
             if self.record:
+                #auto save every frame avi here
+                if self.videowriter:
+                    self.videowriter.write( img_z )
                 valuefilter( value_ori, self.framenumber )
                 self.OnPlot( event )
                 self.framenumber += 1
-            else:
-                self.framenumber = 0
             # step 3. image disp on wxWindow 
             img_disp = cv2.cvtColor( img_z, cv2.COLOR_BGR2RGB )
             img_h = len( img_disp )
@@ -406,16 +443,16 @@ class MainWindow( wx.Frame ):
             dc.DrawBitmap( img_disp_bm, 0, 0, False )
             # step 4. limit record lenght to 90 minutes
             if self.framenumber >= self.fps * 60 * record_minutes_max:
-                #auto save
-                self.framenumber = 0
-                self.OnRecord( event )
+                #auto save png here 1/2
+                self.autoSavePng()
+                self.OnRecord( event ) #self.recordslice will not clear
         # end of frame capture
         else:
             self.OnEOF( event )
 
     def OnPlot( self, event ):
         if not self.plot:
-            self.plot = PlotFigure(self, "Plot Window")
+            self.plot = PlotFigure(self, "Plot Window - Slice: "+str(self.recordslice) )
             self.plot.Show()
         self.plot.onUpdate()
 
@@ -440,14 +477,13 @@ class MainWindow( wx.Frame ):
         elif zoom_id == 28:
             self.zoom_param[1] = -1 #rotate left
 
-    def getRecordDir( self ):
-        if self.recorddir is None:
-            config = ConfigParser.ConfigParser()
-            config.read("conf.ini")
-            self.recorddir = config.get( "Record Dir", "recorddir" )
+
 
     def OnSetRecordDir( self, event ):
+        if self.recorddir is None:
+            self.getRecordDir()
         dlg = wx.DirDialog( self, "Choose a directory:",
+                            defaultPath = self.recorddir,
                             style=wx.DD_DEFAULT_STYLE
                             )
         if dlg.ShowModal() == wx.ID_OK:
@@ -483,6 +519,8 @@ class MainWindow( wx.Frame ):
     def OnCloseWindow( self, event ):
         self.timer.Stop()
         cv2.destroyAllWindows()
+        if self.record:
+            self.OnStop( event )
         if self.plot:
             self.plot.Destroy()
         self.Destroy()
