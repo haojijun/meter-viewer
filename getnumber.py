@@ -12,12 +12,12 @@ import numpy as np
 import os
 import math
 
-
-
-
+#global setting
 #image roi size
 roi_w = 400
 roi_h = 100
+
+DEBUG_MODE = False
 
 
 #7-segment number
@@ -56,10 +56,6 @@ def getroi( img ):
     #blur = cv2.bilateralFilter(gray,9,150,150)
     blur = cv2.GaussianBlur(gray,(3,3),0)
 
-    #edges = cv2.Canny(blur,50,150,apertureSize = 3) #
-    #kernel = np.ones((3,3),np.uint8)
-    #closing = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations = 1)
-
     # need update
     # Threshold the image
     ret,thresh = cv2.threshold(blur, threshold_1,255,1) # search white from black
@@ -69,19 +65,15 @@ def getroi( img ):
     closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 1)
 
     contours, hierarchy = cv2.findContours(closing.copy(),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-    cnts = sorted(contours, key = cv2.contourArea, reverse = True)[:1] #?
+    cnts = sorted(contours, key = cv2.contourArea, reverse = True)[:1] # is there better way?
     #for cnt in cnts:
     cnt = cnts[0]
     
     hull = cv2.convexHull(cnt)
-    #epsilon = 0.002*cv2.arcLength(hull,True)
-    #approx = cv2.approxPolyDP(hull,epsilon,True)
 
     box = cv2.minAreaRect(hull)
     #for dubug
     #draw_box( img, box )
-
-    
 
     if box[1][0] >= box[1][1]:      
         w = box[1][0]
@@ -97,7 +89,6 @@ def getroi( img ):
         return None
 
     #box to corner point
-    #box_v = cv2.cv.BoxPoints(box)
     #be care that y=0 is top, r is negative
     a = 0.5 * math.cos(math.radians( r ))
     b = 0.5 * math.sin(math.radians( r ))
@@ -129,11 +120,14 @@ def getroi( img ):
     cv2.line( img, (tr_x,tr_y), (br_x,br_y), boxcolor )
     cv2.line( img, (br_x,br_y), (bl_x,bl_y), boxcolor )
     cv2.line( img, (bl_x,bl_y), (tl_x,tl_y), boxcolor )
-	
-    cv2.imshow("thresh", closing)
-    cv2.imshow("gray", gray)
+
+    if DEBUG_MODE:	
+        cv2.imshow("thresh", closing)
+        cv2.imshow("gray", gray)
 
     return roi_thresh
+
+#------------------------------------------------------------------
 
 """
 input:
@@ -181,7 +175,8 @@ def getSingleNumber( img, cont ):
         seg7[3] = 1   
 
     #for debug
-    cv2.imshow( "roi_sn", roi_sn ) 
+    if DEBUG_MODE:
+        cv2.imshow( "roi_sn", roi_sn ) 
 
     try:
         i = number_mask.index( tuple(seg7) )
@@ -196,14 +191,10 @@ def getSingleNumber( img, cont ):
         else:
             return str( i )
     except:
-        #imwritefile = "E://PIL/num/singlenum/error/" + str(cv2.getTickCount()) + ".jpg"
-        #cv2.imwrite( imwritefile, roi_sn )
         return "*"
 
-
-
-
-#
+#----------------------------------------------------------------------
+    
 def getnumber( img ):
     thresh_roi = 5
     color = (255, 255, 0)
@@ -246,8 +237,6 @@ def getnumber( img ):
                                    borderValue=cv2.cv.ScalarAll(255) )
         roi = roi_ad
         #print "ROI adjust"
-        
-
 
     #step 2. get single number roi
     cont, hier = cv2.findContours( roi.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE )
@@ -292,7 +281,6 @@ def getnumber( img ):
             if brs[-i][0] + brs[-i][2] not in \
                range( roi_sn_right[-i]-15, roi_sn_right[-i]+15 ):
                 return (0, "ERR", 3, "Single Number ROI error")
-                    
 
     #step 3. get numbers
     numstr = ""
@@ -308,7 +296,8 @@ def getnumber( img ):
 
     #for debug
     #print numstr
-    cv2.imshow("roi", roi)
+    if DEBUG_MODE:
+        cv2.imshow("roi", roi)
 
     #check whether numstr is ok
     #it is ok if "-1" appear first, else wrong like "*"
@@ -327,62 +316,5 @@ def getnumber( img ):
 
 #-------------------------------------------------------
 
-def test( testmode = 0):
-    cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
-
-    if testmode == 0: # img
-        imagefile = "E://PIL/num/web_92.7.jpg"
-        imagefile = "E://PIL/num/mobile_70.5.jpg"
-        imagefile = "VID_20141216_110259-0.00.14.18.jpg"
-
-        img = cv2.imread( imagefile )
-        print getnumber( img )[1]
-        cv2.imshow("Image", img)
-        k = cv2.waitKey(0)
-
-    elif testmode == 1:
-        videoCapture = cv2.VideoCapture('Capture - 2.mp4')
-
-        i = 0
-        for i in range(480):
-            i = i + 1
-            success, frame = videoCapture.read()
-
-        img = frame
-        print getnumber( img )[1]
-        cv2.imshow("Image", img)
-        k = cv2.waitKey(0)
-        
-        
-
-    else: #video
-        videoCapture = cv2.VideoCapture('Capture - 4.mp4')
-
-        #get fps and size
-        fps = videoCapture.get(cv2.cv.CV_CAP_PROP_FPS)
-        size = (int(videoCapture.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)), 
-                int(videoCapture.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)))
- 
-        success, frame = videoCapture.read()
-        i = 0
-        while success:
-            i = i+1
-            print i
-            print getnumber( frame )[1]
-            cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
-            cv2.imshow("Image", frame)
-            k = cv2.waitKey(10/int(fps)) #delay #1000/int(fps)
-            if k==27:#ESC Key
-                break
-            success, frame = videoCapture.read() 
-        videoCapture.release()
-
-        
-    cv2.destroyAllWindows()
-    return
-
-#----------------------------------------------------------------
-
-#test(0)
 
 

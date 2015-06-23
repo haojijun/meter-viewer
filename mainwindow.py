@@ -9,6 +9,8 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from collections import Counter
 import ConfigParser
 import datetime
+import string
+import unicodedata
 
 from imagezoom import image_zoom
 from getnumber import getnumber
@@ -16,8 +18,11 @@ from getnumber import getnumber
 #global setting
 noise_level = -40.0
 record_minutes_max = 0.6
+#capture window size
 cols = 640 
 rows = 360
+DEBUG_MODE = False
+validFilenameChars = "-_.() %s%s" % (string.ascii_letters, string.digits)
 
 #global variables
 val_list = []
@@ -61,7 +66,7 @@ def valuefilter( value_in, frame=0, len_max=10 ):
         else:
             val_list.append( None )
             val_list_bar.append( [None, noise_level, None] )
-            print "filter Error!", len(val_list_f)
+            #print "filter Error!", len(val_list_f)
             #for err in val_list_tmp:
                 #print err
             
@@ -138,7 +143,7 @@ class MainWindow( wx.Frame ):
         self.CreateStatusBar()
         self.StatusBar.SetFieldsCount(3)
         self.StatusBar.SetStatusWidths( [-4, -1, -3] )
-        #self.StatusBar.SetStatusText( "IDLE", 0 )
+        self.StatusBar.SetStatusText( "IDLE", 0 )
 
         # MenuBar
         menuBar = wx.MenuBar()
@@ -166,6 +171,10 @@ class MainWindow( wx.Frame ):
         self.Bind(wx.EVT_MENU, self.OnSaveAs, id=103)
         self.Bind(wx.EVT_MENU, self.OnSetRecordDir, id=104)
         self.Bind(wx.EVT_MENU, self.OnCloseWindow, id=105)
+        # menu init
+        self.MenuBar.Enable( 101, True ) #same as toolbar 10
+        self.MenuBar.Enable( 102, True ) #same as toolbar 10
+        self.MenuBar.Enable( 103, False ) #same as toolbar 13
         
         
         # Tool Bar
@@ -256,6 +265,10 @@ class MainWindow( wx.Frame ):
         filepng = self.recorddir + self.recordname + str(self.recordslice) \
                   + ".png"
         self.plot.fig.savefig( filepng, dpi=100 ) #imgsize
+
+    def checkFileName( self, filename ):
+        cleanedFilename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore')
+        return ''.join(c for c in cleanedFilename if c in validFilenameChars)
         
 
     # event handle function
@@ -326,6 +339,7 @@ class MainWindow( wx.Frame ):
                  
     # start of frame capture
     def OnSOF( self, event ):
+        self.StatusBar.SetStatusText( "Capturing", 0 )
         self.zoom_param[0] = 1 # zoom home
         self.fps = int( self.capture.get( cv2.cv.CV_CAP_PROP_FPS ) )
         if self.fps == 0:
@@ -334,13 +348,16 @@ class MainWindow( wx.Frame ):
         #set toolbar
         self.ToolBar.EnableTool( 10, True )
         self.ToolBar.EnableTool( 11, True )
-        self.ToolBar.EnableTool( 11, False )
-        self.ToolBar.EnableTool( 11, False )
+        self.ToolBar.EnableTool( 12, False )
+        self.ToolBar.EnableTool( 13, False )
+        self.MenuBar.Enable( 101, True )
+        self.MenuBar.Enable( 102, True )
         if self.capturetype == "File":
             self.OnRecord( event )
 
     # end of frame capture, call automate
     def OnEOF( self, event ):
+        self.StatusBar.SetStatusText( "IDLE", 0 )
         self.capture = None
         self.capturetype = None
         self.timer.Stop()
@@ -352,15 +369,19 @@ class MainWindow( wx.Frame ):
             self.ToolBar.EnableTool(11, False)
             self.ToolBar.EnableTool(12, False)
             self.ToolBar.EnableTool(13, False)
+            self.MenuBar.Enable( 101, True )
+            self.MenuBar.Enable( 102, True )
+            self.MenuBar.Enable( 103, False )
             
-    def OnRecord( self, event ):       
+    def OnRecord( self, event ):
+        self.StatusBar.SetStatusText( "Recording", 0 )
         self.record = 1
         self.framenumber = 0
         #disable setRecordDir
         self.MenuBar.Enable(104, False)
         self.getRecordDir()
         if self.recordslice == 0:
-            self.recordname = datetime.datetime.now().strftime("\%Y%m%d_%H%M%S_")
+            self.recordname = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_")
         self.recordslice += 1
         fileavi = self.recorddir + self.recordname + str(self.recordslice) + ".avi"
         self.videowriter = cv2.VideoWriter()
@@ -385,8 +406,12 @@ class MainWindow( wx.Frame ):
         self.ToolBar.EnableTool(11, False)
         self.ToolBar.EnableTool(12, True)
         self.ToolBar.EnableTool(13, False)
+        self.MenuBar.Enable( 101, False )
+        self.MenuBar.Enable( 102, False )
+        self.MenuBar.Enable( 103, False )
 
     def OnStop( self, event ):
+        self.StatusBar.SetStatusText( "IDLE", 0 )
         # assert self.record==1
         self.record = 0
         #auto save png here 2/2
@@ -402,6 +427,9 @@ class MainWindow( wx.Frame ):
             self.ToolBar.EnableTool(11, False)
         self.ToolBar.EnableTool(12, False)
         self.ToolBar.EnableTool(13, True) #Enabe saveas only after stop
+        self.MenuBar.Enable( 101, True )
+        self.MenuBar.Enable( 102, True )
+        self.MenuBar.Enable( 103, True )
 
     def NextFrame( self, event ):
         ret, img_c = self.capture.read()
@@ -487,7 +515,7 @@ class MainWindow( wx.Frame ):
                             style=wx.DD_DEFAULT_STYLE
                             )
         if dlg.ShowModal() == wx.ID_OK:
-            self.recorddir = dlg.GetPath()
+            self.recorddir = dlg.GetPath() + '\\' #
             config = ConfigParser.ConfigParser()
             config.read("conf.ini")
             config.set( "Record Dir", "recorddir", self.recorddir )
@@ -497,22 +525,15 @@ class MainWindow( wx.Frame ):
         dlg.Destroy()
         
     def OnSaveAs( self, event ):
-        wildcard = "PNG Files (*.png)|*.png|"     \
-                   "JPG Files (*.jpg)|*.jpg|"     \
-                   "All files (*.*)|*.*"
-        dlg = wx.FileDialog(
-            self, message="Save file as ...",
-            defaultDir=os.getcwd(),
-            defaultFile="",
-            wildcard=wildcard,
-            style=wx.SAVE
-            )
-
-        dlg.SetFilterIndex(2)
+        dlg = wx.TextEntryDialog(
+            self, "Enter new file name...",
+            'Save as...', '')
+        dlg.SetValue("TestCase")
 
         if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
-            self.plot.fig.savefig( path, dpi=100 )
+            newname = self.checkFileName( dlg.GetValue() )
+            if newname:
+                pass
 
         dlg.Destroy()
         
