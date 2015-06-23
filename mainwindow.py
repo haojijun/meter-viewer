@@ -2,6 +2,7 @@ import os
 import wx
 import cv2
 
+from wx.lib.wordwrap import wordwrap
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -160,9 +161,7 @@ class MainWindow( wx.Frame ):
         menuBar.Append(menu1, "&File")
         # 2nd menu from left
         menu2 = wx.Menu()
-        menu2.Append(201, "Demo")
-        menu2.AppendSeparator()
-        menu2.Append(202, "About")
+        menu2.Append(201, "About")
         menuBar.Append(menu2, "&Help")
         # Menu events
         self.SetMenuBar(menuBar)
@@ -171,6 +170,7 @@ class MainWindow( wx.Frame ):
         self.Bind(wx.EVT_MENU, self.OnSaveAs, id=103)
         self.Bind(wx.EVT_MENU, self.OnSetRecordDir, id=104)
         self.Bind(wx.EVT_MENU, self.OnCloseWindow, id=105)
+        self.Bind(wx.EVT_MENU, self.OnAbout, id=201)
         # menu init
         self.MenuBar.Enable( 101, True ) #same as toolbar 10
         self.MenuBar.Enable( 102, True ) #same as toolbar 10
@@ -262,8 +262,9 @@ class MainWindow( wx.Frame ):
             self.recorddir = config.get( "Record Dir", "recorddir" )
 
     def autoSavePng( self ):
-        filepng = self.recorddir + self.recordname + str(self.recordslice) \
-                  + ".png"
+        filepng = os.path.join( self.recorddir,
+                                self.recordname + '_' + str(self.recordslice) \
+                                + ".png" )
         self.plot.fig.savefig( filepng, dpi=100 ) #imgsize
 
     def checkFileName( self, filename ):
@@ -381,9 +382,11 @@ class MainWindow( wx.Frame ):
         self.MenuBar.Enable(104, False)
         self.getRecordDir()
         if self.recordslice == 0:
-            self.recordname = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_")
+            self.recordname = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.recordslice += 1
-        fileavi = self.recorddir + self.recordname + str(self.recordslice) + ".avi"
+        fileavi = os.path.join( self.recorddir,
+                                self.recordname + '_' + str(self.recordslice) \
+                                + ".avi" )
         self.videowriter = cv2.VideoWriter()
         #sometimes the first will not success
         #the single video file should be smaller than 2G
@@ -417,6 +420,7 @@ class MainWindow( wx.Frame ):
         #auto save png here 2/2
         self.autoSavePng()
         self.recordslice = 0
+        self.videowriter = None #release
         #enable setRecordDir
         self.MenuBar.Enable(104, True)
         #set toolbar
@@ -515,7 +519,7 @@ class MainWindow( wx.Frame ):
                             style=wx.DD_DEFAULT_STYLE
                             )
         if dlg.ShowModal() == wx.ID_OK:
-            self.recorddir = dlg.GetPath() + '\\' #
+            self.recorddir = dlg.GetPath()
             config = ConfigParser.ConfigParser()
             config.read("conf.ini")
             config.set( "Record Dir", "recorddir", self.recorddir )
@@ -525,17 +529,60 @@ class MainWindow( wx.Frame ):
         dlg.Destroy()
         
     def OnSaveAs( self, event ):
-        dlg = wx.TextEntryDialog(
-            self, "Enter new file name...",
-            'Save as...', '')
-        dlg.SetValue("TestCase")
-
+        dlg = wx.FileDialog( self,
+                             message="Save file as...",
+                             defaultDir=self.recorddir,
+                             defaultFile=self.recordname,
+                             wildcard="Png Files (*.png)|*.png|",
+                             style=wx.OVERWRITE_PROMPT | wx.SAVE 
+                             )
+        dlg.SetFilterIndex(2)
         if dlg.ShowModal() == wx.ID_OK:
-            newname = self.checkFileName( dlg.GetValue() )
-            if newname:
-                pass
-
+            newdir = dlg.GetDirectory()
+            #finename only, on ext
+            newname = os.path.splitext( dlg.GetFilename() )[0]
+            olddir = self.recorddir
+            oldname = self.recordname
+            print olddir, oldname, newdir, newname
+            #check, newname is check by FileDialog 
+            if newname != oldname or newdir != olddir:
+                #renames the autosave png/avi files
+                oldfiles = filter( lambda s: s.find(oldname) != -1,
+                                   os.listdir( olddir ) )
+                newfiles = map( lambda s: s.replace(oldname, newname),
+                                oldfiles )
+                print oldfiles, newfiles
+                for i in range( len(oldfiles) ):
+                    # change filename and dir meantime
+                    newfile = os.path.join( newdir, newfiles[i] )
+                    if os.path.exists( newfile ):
+                        os.remove( newfile )
+                    os.renames( os.path.join( olddir, oldfiles[i] ),
+                                newfile )
+                #update recordname and recorddir,
+                #but the recorddir in conf.ini is not change
+                self.recordname = newname
+                self.recorddir = newdir
         dlg.Destroy()
+
+    def OnAbout( self, event ):
+        info = wx.AboutDialogInfo()
+        info.Name = "Meter Viewer"
+        info.Version = "0.1"
+        info.Copyright = "(C) 2015"
+        info.Description = wordwrap(
+            "Meter Viewer is a program used to auto capture, \"read\" and "
+            "record an old meter panel which has no digital output interface."
+
+            "\n\nThis program used Python 2.7.9, OpenCV 2.4.10, "
+            "wxPython 2.8, matplotlib 1.3.0.",
+            350, wx.ClientDC( self ) )
+        info.WebSite = ("https://github.com/haojijun/meter-viewer/")
+        info.Developers = [ "HAO Jijun" ]
+        #info.License = wordwrap( "GPL", 500, wx.ClientDC( self ) )
+        wx.AboutBox( info )
+        
+            
         
     def OnCloseWindow( self, event ):
         self.timer.Stop()
