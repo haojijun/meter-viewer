@@ -156,8 +156,9 @@ class MainWindow( wx.Frame ):
         menu1.Append(103, "&Save As...", "Save the auto saved file with a new name" )
         menu1.AppendSeparator()
         menu1.Append(104, "&Set Record Dir", "Set the auto save directory")
+        menu1.Append(105, "&Open Record Dir", "Open the auto save directory" )
         menu1.AppendSeparator()
-        menu1.Append(105, "&Exit", "Close this Application")
+        menu1.Append(106, "&Exit", "Close this Application")
         menuBar.Append(menu1, "&File")
         # 2nd menu from left
         menu2 = wx.Menu()
@@ -169,7 +170,8 @@ class MainWindow( wx.Frame ):
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=102)
         self.Bind(wx.EVT_MENU, self.OnSaveAs, id=103)
         self.Bind(wx.EVT_MENU, self.OnSetRecordDir, id=104)
-        self.Bind(wx.EVT_MENU, self.OnCloseWindow, id=105)
+        self.Bind(wx.EVT_MENU, self.OnOpenRecordDir, id=105)
+        self.Bind(wx.EVT_MENU, self.OnCloseWindow, id=106)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=201)
         # menu init
         self.MenuBar.Enable( 101, True ) #same as toolbar 10
@@ -527,6 +529,10 @@ class MainWindow( wx.Frame ):
             config.write( configfile )
             configfile.close()            
         dlg.Destroy()
+
+    def OnOpenRecordDir( self, event ):
+        self.getRecordDir()
+        os.system( "explorer.exe %s" %self.recorddir )
         
     def OnSaveAs( self, event ):
         dlg = wx.FileDialog( self,
