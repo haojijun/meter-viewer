@@ -318,6 +318,7 @@ class MainWindow( wx.Frame ):
                 self.capturetype = "File"
                 self.OnSOF( event )
         dlg.Destroy()
+        
 
     def OnOpenCam( self, event ):
         cam_list = []
