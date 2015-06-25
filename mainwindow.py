@@ -1,9 +1,12 @@
 import os
 import wx
 import cv2
+import sys
 
 from wx.lib.wordwrap import wordwrap
 import matplotlib
+matplotlib.use('wxagg') #before import pyplot
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
@@ -18,7 +21,7 @@ from getnumber import getnumber
 
 #global setting
 noise_level = -40.0
-record_minutes_max = 0.6
+record_minutes_max = 60 #max 60, the autosave.avi should < 2GB
 #capture window size
 cols = 640 
 rows = 360
@@ -28,6 +31,25 @@ validFilenameChars = "-_.() %s%s" % (string.ascii_letters, string.digits)
 #global variables
 val_list = []
 val_list_bar = []
+
+
+#-----------------------------------------------------------------
+# www.py2exe.org/index.cgi/WhereAmI
+
+def we_are_frozen():
+    """Returns whether we are frozen via py2exe.
+    This will affect how we find out where we are located."""
+    return hasattr( sys, "frozen" )
+
+def module_path():
+    """ This will get us the program's directory,
+    even if we are frozen using py2exe"""
+    if we_are_frozen():
+        return os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding( )))
+
+    return os.path.dirname(unicode(__file__, sys.getfilesystemencoding( )))
+
+#-----------------------------------------------------------------
 
 """
 1. if there "number" or "CAL" or "OFF", select most common
@@ -259,9 +281,13 @@ class MainWindow( wx.Frame ):
     # normal function
     def getRecordDir( self ):
         if self.recorddir is None:
-            config = ConfigParser.ConfigParser()
-            config.read("conf.ini")
-            self.recorddir = config.get( "Record Dir", "recorddir" )
+            try:
+                config = ConfigParser.ConfigParser()
+                config.read( os.path.join( module_path(), "conf.ini" ) ) # absolute
+                self.recorddir = config.get( "Record Dir", "recorddir" )
+                self.recorddir = os.path.realpath( self.recorddir )
+            except:
+                self.recorddir = module_path()
 
     def autoSavePng( self ):
         filepng = os.path.join( self.recorddir,
@@ -280,10 +306,10 @@ class MainWindow( wx.Frame ):
                    "All files (*.*)|*.*"
         dlg = wx.FileDialog(
             self, message="Choose a video file",
-            defaultDir=os.getcwd(),
+            defaultDir="",
             defaultFile="",
             wildcard=wildcard,
-            style=wx.OPEN | wx.CHANGE_DIR
+            style=wx.OPEN
             )
         if dlg.ShowModal() == wx.ID_OK:
             paths = dlg.GetPaths()
@@ -455,17 +481,18 @@ class MainWindow( wx.Frame ):
                                 cmd_pan_x = cmd_pan_x,
                                 cmd_pan_y = cmd_pan_y
                                 )
+            
+            # step 2. result filter and plot
+            #auto save every frame avi here
+            if self.record and self.videowriter: #
+                self.videowriter.write( img_z )
             value_ori = getnumber( img_z ) #
             #print value_ori[1]
             #display on StatusBar
             self.StatusBar.SetStatusText( value_ori[1], 1 )
             self.StatusBar.SetStatusText( value_ori[3], 2 )
-            # step 2. result filter and plot
             if self.record:
-                #auto save every frame avi here
-                if self.videowriter:
-                    self.videowriter.write( img_z )
-                valuefilter( value_ori, self.framenumber )
+                valuefilter( value_ori, self.framenumber, self.fps )
                 self.OnPlot( event )
                 self.framenumber += 1
             # step 3. image disp on wxWindow 
@@ -525,7 +552,7 @@ class MainWindow( wx.Frame ):
             config = ConfigParser.ConfigParser()
             config.read("conf.ini")
             config.set( "Record Dir", "recorddir", self.recorddir )
-            configfile = open( "conf.ini", "w" )
+            configfile = open( os.path.join( module_path(), "conf.ini" ), "w" )
             config.write( configfile )
             configfile.close()            
         dlg.Destroy()

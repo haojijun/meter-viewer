@@ -50,7 +50,7 @@ threshold_2 = 130
 
 #return image roi
 def getroi( img ):
-    boxcolor = (255,0,0)
+    boxcolor = (0,255,0)
     gray = cv2.cvtColor( img, cv2.COLOR_BGR2GRAY )
 
     #blur = cv2.bilateralFilter(gray,9,150,150)
@@ -116,10 +116,10 @@ def getroi( img ):
     ret,roi_thresh = cv2.threshold(roi_blur, threshold_2,255,0)
 
     #draw box
-    cv2.line( img, (tl_x,tl_y), (tr_x,tr_y), boxcolor )
-    cv2.line( img, (tr_x,tr_y), (br_x,br_y), boxcolor )
-    cv2.line( img, (br_x,br_y), (bl_x,bl_y), boxcolor )
-    cv2.line( img, (bl_x,bl_y), (tl_x,tl_y), boxcolor )
+    cv2.line( img, (tl_x,tl_y), (tr_x,tr_y), boxcolor, 3 )
+    cv2.line( img, (tr_x,tr_y), (br_x,br_y), boxcolor, 3 )
+    cv2.line( img, (br_x,br_y), (bl_x,bl_y), boxcolor, 3 )
+    cv2.line( img, (bl_x,bl_y), (tl_x,tl_y), boxcolor, 3 )
 
     if DEBUG_MODE:	
         cv2.imshow("thresh", closing)
