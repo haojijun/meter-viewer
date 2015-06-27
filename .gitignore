@@ -216,9 +216,6 @@ pip-log.txt
 .mr.developer.cfg
 
 #############
-## Video
+## meterviewer
 #############
-*.mp4
-*.avi
 records/*
-Microsoft.VC90.CRT/*

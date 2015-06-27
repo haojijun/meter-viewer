@@ -51,10 +51,10 @@ def image_zoom( img, cmd_init=0,
     """
     
     global rotate, zoom, pan_x, pan_y, M
-
     #step 1. rotate
     if cmd_rotate:
         rotate = ( 90 * cmd_rotate / abs(cmd_rotate) + rotate ) % 360
+        
     if rotate == 90:
         img_tmp = cv2.transpose(img)
         img_r = cv2.flip(img_tmp, 1)
@@ -66,7 +66,7 @@ def image_zoom( img, cmd_init=0,
         img_r = cv2.flip(img_tmp, 0)
     else:
         img_r = img
-
+    
     #first to run or fit to window or rotate
     #set zoom and pan default
     if cmd_init or cmd_rotate:
@@ -117,7 +117,7 @@ def image_zoom( img, cmd_init=0,
 
     #get the image and return
     img_z = cv2.warpAffine( img_r, M, (cols,rows), borderValue=cv2.cv.ScalarAll(255) )
-    
+
     return img_z
 
 #--------------------------------------------------------------

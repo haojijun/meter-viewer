@@ -316,9 +316,10 @@ class MainWindow( wx.Frame ):
             for path in paths: # only one file currently
                 self.capture = cv2.VideoCapture(path)
                 self.capturetype = "File"
-                self.OnSOF( event )
         dlg.Destroy()
-        
+
+        if self.capture.isOpened():
+            self.OnSOF( event )
 
     def OnOpenCam( self, event ):
         cam_list = []
@@ -369,12 +370,14 @@ class MainWindow( wx.Frame ):
                  
     # start of frame capture
     def OnSOF( self, event ):
+        self.OnEOF( event )
+        
         self.StatusBar.SetStatusText( "Capturing", 0 )
         self.zoom_param[0] = 1 # zoom home
         self.fps = int( self.capture.get( cv2.cv.CV_CAP_PROP_FPS ) )
         if self.fps == 0:
             self.fps = 10
-        self.timer.Start(1000./self.fps)
+        
         #set toolbar
         self.ToolBar.EnableTool( 10, True )
         self.ToolBar.EnableTool( 11, True )
@@ -384,13 +387,15 @@ class MainWindow( wx.Frame ):
         self.MenuBar.Enable( 102, True )
         if self.capturetype == "File":
             self.OnRecord( event )
+        #start timer last    
+        self.timer.Start(1000./self.fps)
 
     # end of frame capture, call automate
     def OnEOF( self, event ):
-        self.StatusBar.SetStatusText( "IDLE", 0 )
-        self.capture = None
-        self.capturetype = None
         self.timer.Stop()
+        self.StatusBar.SetStatusText( "IDLE", 0 )
+        #self.capture = None
+        #self.capturetype = None
         if self.record:
             # set toolbar in OnStop
             self.OnStop( event )
@@ -429,10 +434,7 @@ class MainWindow( wx.Frame ):
                                    self.fps, (cols, rows) )
         if not self.videowriter.isOpened():
             self.videowriter = None
-        # how to clear the plot window ???
-        if self.plot:
-            self.plot.Destroy()
-        self.OnPlot( event )
+
         #set toolbar
         self.ToolBar.EnableTool(10, False)
         self.ToolBar.EnableTool(11, False)
@@ -447,6 +449,8 @@ class MainWindow( wx.Frame ):
         # assert self.record==1
         self.record = 0
         #auto save png here 2/2
+        if not self.plot:
+            self.OnPlot( event )
         self.autoSavePng()
         self.recordslice = 0
         self.videowriter = None #release
@@ -482,7 +486,7 @@ class MainWindow( wx.Frame ):
                                 cmd_pan_x = cmd_pan_x,
                                 cmd_pan_y = cmd_pan_y
                                 )
-            
+
             # step 2. result filter and plot
             #auto save every frame avi here
             if self.record and self.videowriter: #
@@ -494,8 +498,13 @@ class MainWindow( wx.Frame ):
             self.StatusBar.SetStatusText( value_ori[3], 2 )
             if self.record:
                 valuefilter( value_ori, self.framenumber, self.fps )
+                if self.framenumber==0: #clear plot
+                    # how to clear the plot canvas???
+                    if self.plot:
+                        self.plot.Destroy()
                 self.OnPlot( event )
                 self.framenumber += 1
+
             # step 3. image disp on wxWindow 
             img_disp = cv2.cvtColor( img_z, cv2.COLOR_BGR2RGB )
             img_h = len( img_disp )
@@ -503,18 +512,24 @@ class MainWindow( wx.Frame ):
             img_disp_bm = wx.BitmapFromBuffer( img_w, img_h, img_disp )
             dc = wx.ClientDC( self.window )
             dc.DrawBitmap( img_disp_bm, 0, 0, False )
+
             # step 4. limit record lenght to 90 minutes
             if self.framenumber >= self.fps * 60 * record_minutes_max:
                 #auto save png here 1/2
                 self.autoSavePng()
                 self.OnRecord( event ) #self.recordslice will not clear
+
         # end of frame capture
         else:
             self.OnEOF( event )
 
     def OnPlot( self, event ):
         if not self.plot:
-            self.plot = PlotFigure(self, "Plot Window - Slice: "+str(self.recordslice) )
+            if self.recordslice==0:
+                self.plot = PlotFigure(self, "Plot Window" )
+            else:
+                self.plot = PlotFigure(self, "Plot Window - Slice: "
+                                       +str(self.recordslice) )
             self.plot.Show()
         self.plot.onUpdate()
 
@@ -567,7 +582,7 @@ class MainWindow( wx.Frame ):
                              message="Save file as...",
                              defaultDir=self.recorddir,
                              defaultFile=self.recordname,
-                             wildcard="Png Files (*.png)|*.png|",
+                             wildcard="Png Files (*.png)|*.png",
                              style=wx.OVERWRITE_PROMPT | wx.SAVE 
                              )
         dlg.SetFilterIndex(2)
@@ -577,7 +592,7 @@ class MainWindow( wx.Frame ):
             newname = os.path.splitext( dlg.GetFilename() )[0]
             olddir = self.recorddir
             oldname = self.recordname
-            print olddir, oldname, newdir, newname
+            #print olddir, oldname, newdir, newname
             #check, newname is check by FileDialog 
             if newname != oldname or newdir != olddir:
                 #renames the autosave png/avi files
@@ -585,7 +600,7 @@ class MainWindow( wx.Frame ):
                                    os.listdir( olddir ) )
                 newfiles = map( lambda s: s.replace(oldname, newname),
                                 oldfiles )
-                print oldfiles, newfiles
+                #print oldfiles, newfiles
                 for i in range( len(oldfiles) ):
                     # change filename and dir meantime
                     newfile = os.path.join( newdir, newfiles[i] )
