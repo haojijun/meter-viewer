@@ -316,10 +316,9 @@ class MainWindow( wx.Frame ):
             for path in paths: # only one file currently
                 self.capture = cv2.VideoCapture(path)
                 self.capturetype = "File"
+                self.OnSOF( event )
         dlg.Destroy()
-
-        if self.capture.isOpened():
-            self.OnSOF( event )
+            
 
     def OnOpenCam( self, event ):
         cam_list = []
@@ -403,10 +402,10 @@ class MainWindow( wx.Frame ):
             self.ToolBar.EnableTool(10, True)
             self.ToolBar.EnableTool(11, False)
             self.ToolBar.EnableTool(12, False)
-            self.ToolBar.EnableTool(13, False)
+            #self.ToolBar.EnableTool(13, False)#
             self.MenuBar.Enable( 101, True )
             self.MenuBar.Enable( 102, True )
-            self.MenuBar.Enable( 103, False )
+            #self.MenuBar.Enable( 103, False )#
             
     def OnRecord( self, event ):
         self.StatusBar.SetStatusText( "Recording", 0 )
@@ -583,9 +582,8 @@ class MainWindow( wx.Frame ):
                              defaultDir=self.recorddir,
                              defaultFile=self.recordname,
                              wildcard="Png Files (*.png)|*.png",
-                             style=wx.OVERWRITE_PROMPT | wx.SAVE 
+                             style=wx.SAVE 
                              )
-        dlg.SetFilterIndex(2)
         if dlg.ShowModal() == wx.ID_OK:
             newdir = dlg.GetDirectory()
             #finename only, on ext
