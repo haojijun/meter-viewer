@@ -21,7 +21,7 @@ from getnumber import getnumber
 
 #global setting
 noise_level = -40.0
-record_minutes_max = 60 #max 60, the autosave.avi should < 2GB
+record_minutes_max = 0.25 #max 60, the autosave.avi should < 2GB
 #capture window size
 cols = 640 
 rows = 360
@@ -105,6 +105,10 @@ class PlotFigure( wx.Frame ):
         self.canvas = FigureCanvas( self, wx.ID_ANY, self.fig )
         #self.ax = self.fig.add_subplot(111)
         self.ax = self.fig.add_axes( [0.12, 0.15, 0.81, 0.76] )
+        self.onClearDraw()
+
+    def onClearDraw( self ):
+        self.ax.clear()
         self.ax.set_ylim( [-200, 0] )
         self.ax.set_xlim( [0, 1] ) #x display minutes
         self.ax.set_autoscale_on(False)
@@ -127,7 +131,7 @@ class PlotFigure( wx.Frame ):
         self.ax.legend()
         self.canvas.draw()
         self.bg = self.canvas.copy_from_bbox( self.ax.bbox )
-
+        
     def onUpdate( self ):
         #self.canvas.restore_region( self.bg )
         xmin, xmax = self.ax.get_xlim()
@@ -409,12 +413,12 @@ class MainWindow( wx.Frame ):
             
     def OnRecord( self, event ):
         self.StatusBar.SetStatusText( "Recording", 0 )
-        self.record = 1
         self.framenumber = 0
         #disable setRecordDir
         self.MenuBar.Enable(104, False)
         self.getRecordDir()
-        if self.recordslice == 0:
+        if self.record == 0: # must before "self.record = 1"
+            self.recordslice = 0
             self.recordname = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.recordslice += 1
         fileavi = os.path.join( self.recorddir,
@@ -434,6 +438,7 @@ class MainWindow( wx.Frame ):
         if not self.videowriter.isOpened():
             self.videowriter = None
 
+        self.record = 1 #
         #set toolbar
         self.ToolBar.EnableTool(10, False)
         self.ToolBar.EnableTool(11, False)
@@ -451,7 +456,7 @@ class MainWindow( wx.Frame ):
         if not self.plot:
             self.OnPlot( event )
         self.autoSavePng()
-        self.recordslice = 0
+        #self.recordslice = 0
         self.videowriter = None #release
         #enable setRecordDir
         self.MenuBar.Enable(104, True)
@@ -500,7 +505,10 @@ class MainWindow( wx.Frame ):
                 if self.framenumber==0: #clear plot
                     # how to clear the plot canvas???
                     if self.plot:
-                        self.plot.Destroy()
+                    #    self.plot.Destroy()
+                        self.plot.onClearDraw()
+                        self.plot.SetTitle( "Plot Window - Slice: "
+                                            +str(self.recordslice) )
                 self.OnPlot( event )
                 self.framenumber += 1
 
@@ -524,11 +532,10 @@ class MainWindow( wx.Frame ):
 
     def OnPlot( self, event ):
         if not self.plot:
-            if self.recordslice==0:
-                self.plot = PlotFigure(self, "Plot Window" )
-            else:
-                self.plot = PlotFigure(self, "Plot Window - Slice: "
-                                       +str(self.recordslice) )
+            self.plot = PlotFigure(self, "Plot Window" )
+            if self.recordslice != 0:
+                self.plot.SetTitle( "Plot Window - Slice: "
+                                    +str(self.recordslice) )
             self.plot.Show()
         self.plot.onUpdate()
 
