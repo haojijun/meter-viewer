@@ -165,6 +165,7 @@ class MainWindow( wx.Frame ):
         self.recordname = None
         self.recordslice = 0
         self.videowriter = None
+        self.noiselevel = 0.0
 
         # StatusBar
         self.CreateStatusBar()
@@ -279,10 +280,23 @@ class MainWindow( wx.Frame ):
         # close window event
         self.Bind( wx.EVT_CLOSE, self.OnCloseWindow )
 
+        # noise level
+        self.getNoiseLevel()
+
         # show window
         self.Show()
 
     # normal function
+    def getNoiseLevel( self ):
+        global noise_level
+        try:
+            config = ConfigParser.ConfigParser()
+            config.read( os.path.join( module_path(), "conf.ini" ) ) # absolute
+            noise_level = config.get( "Noise Level", "noiselevel" )
+            noise_level = float( noise_level )
+        except:
+            noise_level = -40.0
+        
     def getRecordDir( self ):
         if self.recorddir is None:
             try:
