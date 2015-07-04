@@ -30,22 +30,22 @@ The meterviewer.zip contains all the essential files that this software can be r
 The demo.mp4 can be used for test.
 
 1. Open *Camera* or *Video File* from MENU command
-   * There is an open camera command in the TOOLBAR which will just open the default camera, for camera selection please use MENU command.
+   * There is an open camera command in the TOOLBAR which will just open the default camera, for camera selection please use MENU command
 
 2. Zoom and Pan the meter panel image form TOOLBAR command if necessary
-   * A green rectangular will appear around the numbers, which means the numbers have been sucessfully detected.
-   * It will also display some infomation in STATUSBAR, for noise value of "-40.7 dBm" may just display numbers of "407" simplified.
+   * A green rectangular will appear around the numbers, which means the numbers have been sucessfully detected
+   * It will also display some infomation in STATUSBAR, for noise value of "-40.7 dBm" may just display numbers of "407" simplified
 
 3. Start Record from TOOLBAR command
-   * This will Record and Plot the values in Plot Window.
-   * For capture from video file, this record command will be auto trigged when video file is opened.
+   * This will Record and Plot the values in Plot Window
+   * For capture from video file, this record command will be auto trigged when video file is opened
 
 4. Stop Record from TOOLBAR command
    * This will Stop recording the values in Plot Window.
-   * While recording the plot figure and captured video will be auto saved in default "records" directory.
-   * For capture form video file, this stop cammand will be auto trigged when video file is end.
+   * While recording the plot figure and captured video will be auto saved in default "records" directory
+   * For capture form video file, this stop cammand will be auto trigged when video file is end
 
 5. Save as from MENU or TOOLBAR command if necessary
-   * This will change the auto saved files(\*.avi and \*.png) with new entered name.
+   * This will change the auto saved files(\*.avi and \*.png) with new entered name
 
 
