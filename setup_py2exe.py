@@ -83,6 +83,7 @@ mv = Target(
 
 data_files = [ ( "icon", glob(r'icon\*.*') ),
                ( ".", glob(r'conf.ini') ),
+               ( ".", glob(r'README.md') ),
                ( "records", "" ),
                #( ".", glob(r'demo.avi') ),
                ( ".", glob(r'Microsoft.VC90\*.*') ),

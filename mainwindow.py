@@ -21,7 +21,7 @@ from getnumber import getnumber
 
 #global setting
 noise_level = -40.0
-record_minutes_max = 0.25 #max 60, the autosave.avi should < 2GB
+record_minutes_max = 60 #max 60, the autosave.avi should < 2GB
 #capture window size
 cols = 640 
 rows = 360
@@ -135,8 +135,9 @@ class PlotFigure( wx.Frame ):
     def onUpdate( self ):
         #self.canvas.restore_region( self.bg )
         xmin, xmax = self.ax.get_xlim()
-        if len(val_list) >= 60*xmax:
-            self.ax.set_xlim(xmin, int(1.5*xmax)+1 ) # int(1.5)=1
+        while len(val_list) >= 60*xmax:
+            xmax = int( 1.5 * xmax ) + 1 # int(1.5)=1
+            self.ax.set_xlim(xmin, xmax ) 
             self.canvas.draw()
         x_minutes = [ s/60.0 for s in range( len( val_list ) ) ]
         self.line.set_data( x_minutes, val_list )
@@ -285,6 +286,14 @@ class MainWindow( wx.Frame ):
 
         # show window
         self.Show()
+
+        # for debug report
+        print "This console window is reserved to catch any failure " \
+            "messages for debug, if there is other additional message " \
+            "printed, please send it to me. Thanks!\n" \
+            "------------ here is the divider ------------\n"
+            
+        
 
     # normal function
     def getNoiseLevel( self ):
