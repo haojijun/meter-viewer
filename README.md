@@ -3,9 +3,13 @@
 ## Overview:
 A noise measure meter which we use has no digital interface or connected software to supply "record" function 
 that we have to fix our eyes on the meter panel for 40 minutes during one test case.
+
 Therefore this vision software is developed to solve this problem, which we called metervierer will 
 firstly capture the meter panel image from a camera of video file and paly back in the Capture Window, 
 then do some image processing by steps to get the noise value and display in the Plot Window.
+
+![](https://raw.githubusercontent.com/haojijun/meter-viewer/master/screenshot/CaptureWindow.PNG)
+![](https://raw.githubusercontent.com/haojijun/meter-viewer/master/screenshot/PlotWindow.PNG)
 
 ## Features:
 1. Capture from Camera or Video File
