@@ -6,7 +6,6 @@ import sys
 from wx.lib.wordwrap import wordwrap
 import matplotlib
 matplotlib.use('wxagg') #before import pyplot
-
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
@@ -15,6 +14,7 @@ import ConfigParser
 import datetime
 import string
 import unicodedata
+import csv
 
 from imagezoom import image_zoom
 from getnumber import getnumber
@@ -27,10 +27,6 @@ cols = 640
 rows = 360
 DEBUG_MODE = False
 validFilenameChars = "-_.() %s%s" % (string.ascii_letters, string.digits)
-
-#global variables
-val_list = []
-val_list_bar = []
 
 
 #-----------------------------------------------------------------
@@ -56,45 +52,21 @@ def module_path():
 2. if there only "ERR", then error
 3. how to deal with only has one wrong number?
 """
-#func use only
-val_list_tmp = []
-def valuefilter( value_in, frame=0, len_max=10 ):
-    global val_list, val_list_tmp, val_list_bar
-
-    if frame == 0:
-        val_list = []
-        val_list_bar = []
-        
-    if frame % len_max == 0:
-        val_list_tmp = []
-        
-    val_list_tmp.append( value_in )
-    
-    if ( frame + 1 ) % len_max == 0:
-        def f(x): return x[0]==1
-        val_list_f = filter( f, val_list_tmp )
-        if len(val_list_f) >= 0.5*len_max:
-            val_most = Counter( val_list_f ).most_common( 1 )[0][0]
-            #print val_most[1]
-            if val_most[1] != "CAL" and val_most[1] != "OFF":
-                val_float = float( val_most[1] ) / -10.0 #"-888.8dBm"
-                val_list.append( val_float )
-                if val_float > noise_level:
-                    val_list_bar.append( [None, None, noise_level] )
-                else:
-                    val_list_bar.append( [noise_level, None, None] )
-            else:
-                val_list.append( None )
-                val_list_bar.append( [noise_level, None, None] )
+def valuefilter( val_set ):
+    def f(x): return x[0]==1
+    val_set_filter = filter( f, val_set )
+    if len(val_set_filter) >= 0.5*len(val_set):
+        val_most = Counter( val_set_filter ).most_common(1)[0][0]
+        val_most_index = val_set.index( val_most )
+        #print val_most[1]
+        if val_most[1] != "CAL" and val_most[1] != "OFF" and val_most[1] != "ERR":
+            val_float = float( val_most[1] ) / -10.0 #"-888.8dBm"
+            return [ str(val_float), val_most_index ]
         else:
-            val_list.append( None )
-            val_list_bar.append( [None, noise_level, None] )
-            #print "filter Error!", len(val_list_f)
-            #for err in val_list_tmp:
-                #print err
-            
-    return
-        
+            return [ val_most[1], val_most_index ]
+    else:
+        return [ "ERR", 0 ]
+
 #------------------------------------------------------- 
 
 class PlotFigure( wx.Frame ):
@@ -105,9 +77,17 @@ class PlotFigure( wx.Frame ):
         self.canvas = FigureCanvas( self, wx.ID_ANY, self.fig )
         #self.ax = self.fig.add_subplot(111)
         self.ax = self.fig.add_axes( [0.12, 0.15, 0.81, 0.76] )
+        self.value_list = []
+        self.bar_list_g = []
+        self.bar_list_y = []
+        self.bar_list_r = []
         self.onClearDraw()
 
     def onClearDraw( self ):
+        self.value_list = []
+        self.bar_list_g = []
+        self.bar_list_y = []
+        self.bar_list_r = []
         self.ax.clear()
         self.ax.set_ylim( [-200, 0] )
         self.ax.set_xlim( [0, 1] ) #x display minutes
@@ -132,18 +112,42 @@ class PlotFigure( wx.Frame ):
         self.canvas.draw()
         self.bg = self.canvas.copy_from_bbox( self.ax.bbox )
         
-    def onUpdate( self ):
+    def onUpdate( self, value_in=None ):
+        if value_in is None:
+            pass
+        elif value_in == "ERR":
+            self.value_list.append( None )
+            self.bar_list_g.append( None )
+            self.bar_list_y.append( noise_level )
+            self.bar_list_r.append( None )
+        elif value_in == "CAL" or value_in == "OFF":
+            self.value_list.append( None )
+            self.bar_list_g.append( noise_level )
+            self.bar_list_y.append( None )
+            self.bar_list_r.append( None )
+        else:
+            value_f = float( value_in )
+            if value_f < noise_level:
+                self.value_list.append( value_f )
+                self.bar_list_g.append( noise_level )
+                self.bar_list_y.append( None )
+                self.bar_list_r.append( None )
+            else:
+                self.value_list.append( value_f )
+                self.bar_list_g.append( None )
+                self.bar_list_y.append( None )
+                self.bar_list_r.append( noise_level )
         #self.canvas.restore_region( self.bg )
         xmin, xmax = self.ax.get_xlim()
-        while len(val_list) >= 60*xmax:
+        while len(self.value_list) >= 60*xmax:
             xmax = int( 1.5 * xmax ) + 1 # int(1.5)=1
             self.ax.set_xlim(xmin, xmax ) 
             self.canvas.draw()
-        x_minutes = [ s/60.0 for s in range( len( val_list ) ) ]
-        self.line.set_data( x_minutes, val_list )
-        self.line_g.set_data( x_minutes, [ v[0] for v in val_list_bar ] )
-        self.line_y.set_data( x_minutes, [ v[1] for v in val_list_bar ] )
-        self.line_r.set_data( x_minutes, [ v[2] for v in val_list_bar ] )
+        x_minutes = [ s/60.0 for s in range( len( self.value_list ) ) ]
+        self.line.set_data( x_minutes, self.value_list )
+        self.line_g.set_data( x_minutes, self.bar_list_g )
+        self.line_y.set_data( x_minutes, self.bar_list_y )
+        self.line_r.set_data( x_minutes, self.bar_list_r )
         self.ax.draw_artist( self.line )
         self.ax.draw_artist( self.line_g )
         self.ax.draw_artist( self.line_y )
@@ -167,6 +171,7 @@ class MainWindow( wx.Frame ):
         self.recordslice = 0
         self.videowriter = None
         self.noiselevel = 0.0
+        self.value_filter_set = []
 
         # StatusBar
         self.CreateStatusBar()
@@ -448,6 +453,11 @@ class MainWindow( wx.Frame ):
                                 self.recordname + '_' + str(self.recordslice) \
                                 + ".avi" )
         self.videowriter = cv2.VideoWriter()
+        filecsv = os.path.join( self.recorddir,
+                                self.recordname + '_' + str(self.recordslice) \
+                                + ".csv" )
+        self.csvfile_w = open( filecsv, "wb" )
+        self.csvwriter = csv.writer( self.csvfile_w )
         #sometimes the first will not success
         #the single video file should be smaller than 2G
         #640x360, 10fps, 60minutes, 1600M
@@ -524,16 +534,26 @@ class MainWindow( wx.Frame ):
             self.StatusBar.SetStatusText( value_ori[1], 1 )
             self.StatusBar.SetStatusText( value_ori[3], 2 )
             if self.record:
-                valuefilter( value_ori, self.framenumber, self.fps )
+                #valuefilter( value_ori, self.framenumber, self.fps )   
                 if self.framenumber==0: #clear plot
+                    self.value_filter_set = []
                     # how to clear the plot canvas???
                     if self.plot:
                     #    self.plot.Destroy()
                         self.plot.onClearDraw()
                         self.plot.SetTitle( "Plot Window - Slice: "
                                             +str(self.recordslice) )
-                self.OnPlot( event )
+                self.value_filter_set.append( value_ori )
                 self.framenumber += 1
+                if self.framenumber % self.fps == 0:
+                    val_fil, val_index = valuefilter( self.value_filter_set )
+                    print val_fil
+                    #write value to csv file
+                    self.csvwriter.writerow( [ val_fil, val_index ] +
+                                             [ v[1] for v in self.value_filter_set ] )#
+                    self.csvfile_w.flush()
+                    self.OnPlot( event, val_fil )
+                    self.value_filter_set = []
 
             # step 3. image disp on wxWindow 
             img_disp = cv2.cvtColor( img_z, cv2.COLOR_BGR2RGB )
@@ -553,14 +573,14 @@ class MainWindow( wx.Frame ):
         else:
             self.OnEOF( event )
 
-    def OnPlot( self, event ):
+    def OnPlot( self, event, value_in=None ):
         if not self.plot:
             self.plot = PlotFigure(self, "Plot Window" )
             if self.recordslice != 0:
                 self.plot.SetTitle( "Plot Window - Slice: "
                                     +str(self.recordslice) )
             self.plot.Show()
-        self.plot.onUpdate()
+        self.plot.onUpdate( value_in )
 
     def OnZoom( self, event ):
         zoom_id = event.GetId()

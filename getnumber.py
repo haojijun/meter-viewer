@@ -43,8 +43,8 @@ number_mask = ((1, 1, 1, 1, 1, 1, 0), #0
 
 
 # background:176, ROI:70, number:220
-threshold_1 = 120
-threshold_2 = 130
+threshold_1 = 120 #120
+threshold_2 = 130 #130
 
 #------------------------------------------------------
 
